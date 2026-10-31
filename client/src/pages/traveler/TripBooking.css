@@ -1,0 +1,507 @@
+/* ==========================================================================
+   TRIP BOOKING PAGE - INDUSTRY BENCHMARK DESIGN
+   ========================================================================== */
+
+.booking-page-wrap {
+  background: #f8fafc;
+  min-height: 100vh;
+  padding-bottom: 60px;
+}
+
+.booking-hero-banner {
+  background: linear-gradient(135deg, #042923 0%, #083c34 100%);
+  color: #ffffff;
+  padding: 36px 0 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.booking-banner-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.booking-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 14px;
+}
+
+.booking-breadcrumbs a {
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.booking-breadcrumbs a:hover {
+  color: #ffffff;
+}
+
+.booking-banner-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.booking-banner-title-row h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.01em;
+}
+
+.booking-banner-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: #94a3b8;
+}
+
+.booking-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: #e2e8f0;
+}
+
+/* ── TWO-COLUMN BOOKING WORKSPACE ── */
+.booking-workspace {
+  max-width: 1240px;
+  margin: 32px auto 0;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+@media (max-width: 960px) {
+  .booking-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left Form Column */
+.booking-steps-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.booking-section-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.section-step-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.step-num-bubble {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ea580c;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.section-step-head h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.section-step-head p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+/* Form inputs & grid */
+.book-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .book-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.book-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.book-field.full {
+  grid-column: 1 / -1;
+}
+
+.book-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.book-field input,
+.book-field select,
+.book-field textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  background: #ffffff;
+}
+
+.book-field input:focus,
+.book-field select:focus,
+.book-field textarea:focus {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+}
+
+/* Addon Items checkbox cards */
+.addons-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.addon-card-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.addon-card-item:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.addon-card-item.is-selected {
+  border-color: #ea580c;
+  background: #fff7ed;
+}
+
+.addon-info-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.addon-info-left input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #ea580c;
+}
+
+.addon-text-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.addon-text-desc {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.addon-price-tag {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ea580c;
+  flex-shrink: 0;
+}
+
+/* Deposit radios */
+.deposit-options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 580px) {
+  .deposit-options-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deposit-radio-card {
+  padding: 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  background: #ffffff;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deposit-radio-card.is-active {
+  border-color: #ea580c;
+  background: #fffaf5;
+}
+
+.deposit-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deposit-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.deposit-sub {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+/* ── RIGHT COLUMN: DYNAMIC PRICING CALCULATOR ── */
+.booking-calc-sticky {
+  position: sticky;
+  top: 90px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.calc-header {
+  background: #083c34;
+  color: #ffffff;
+  padding: 20px 22px;
+}
+
+.calc-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.calc-header p {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.calc-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.calc-line-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: #475569;
+}
+
+.calc-line-item.discount {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.calc-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 4px 0;
+}
+
+.calc-total-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calc-total-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.calc-total-amount {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ea580c;
+}
+
+.calc-deposit-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #065f46;
+}
+
+.calc-deposit-banner strong {
+  font-size: 15px;
+}
+
+.calc-submit-btn {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 15px;
+  font-size: 15.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+  transition: all 0.2s ease;
+}
+
+.calc-submit-btn:hover {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  transform: translateY(-1px);
+}
+
+.calc-trust-strip {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.calc-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calc-trust-item svg {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+/* ── CONFIRMATION RECEIPT CARD ── */
+.booking-receipt-surface {
+  max-width: 680px;
+  margin: 40px auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 44px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+}
+
+.receipt-icon-bubble {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #10b981;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.booking-receipt-surface h2 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+}
+
+.receipt-ref-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-family: monospace;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 14px 0 20px;
+}
+
+.receipt-details-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  margin: 24px 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.receipt-details-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.receipt-details-table td:first-child {
+  color: #64748b;
+  width: 40%;
+}
+
+.receipt-details-table td:last-child {
+  font-weight: 600;
+  color: #0f172a;
+}

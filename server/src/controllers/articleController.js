@@ -3,14 +3,8 @@ import { Article } from "../models/Article.js";
 // GET /api/articles
 export async function getArticles(req, res, next) {
   try {
-    const { category, search, status } = req.query;
-    const query = {};
-
-    if (status) {
-      query.publicationStatus = status;
-    } else {
-      query.publicationStatus = "Published";
-    }
+    const { category, search } = req.query;
+    const query = { publicationStatus: "Published" };
 
     if (category && category !== "All") {
       query.category = { $regex: new RegExp(category, "i") };
@@ -37,11 +31,21 @@ export async function getArticles(req, res, next) {
   }
 }
 
+// GET /api/articles/admin (Admin: include drafts and archived articles)
+export async function getAdminArticles(_req, res, next) {
+  try {
+    const articles = await Article.find().sort({ updatedAt: -1 });
+    res.json({ success: true, count: articles.length, articles });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // GET /api/articles/:slug
 export async function getArticleBySlug(req, res, next) {
   try {
     const { slug } = req.params;
-    const article = await Article.findOne({ slug });
+    const article = await Article.findOne({ slug, publicationStatus: "Published" });
 
     if (!article) {
       return res.status(404).json({

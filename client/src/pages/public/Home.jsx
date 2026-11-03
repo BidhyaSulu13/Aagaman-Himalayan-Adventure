@@ -1,19 +1,33 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  Award,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  Compass,
+  Flame,
   HeartHandshake,
+  Mail,
+  MapPin,
+  Mountain,
+  Search,
   ShieldCheck,
+  Sparkles,
   Star,
   Users,
-  Utensils
+  Utensils,
+  Zap,
 } from "lucide-react";
 import { Page } from "../../components/common/Page.jsx";
 import { TrekCard } from "../../components/trek/TrekCard.jsx";
-import { useArticles, useDepartures, useRegions, useTreks } from "../../hooks/useDataStore.js";
+import { useToast } from "../../context/ToastContext.jsx";
+import { api } from "../../services/api.js";
+import { dataStore } from "../../services/dataStore.js";
 
 /* ─────────────────────────────────────────────
-   TRUST STRIP
+   TRUST & CREDIBILITY STRIP
 ───────────────────────────────────────────── */
 function TrustCredibilityStrip() {
   return (
@@ -23,28 +37,28 @@ function TrustCredibilityStrip() {
           <ShieldCheck size={22} className="trust-icon" />
           <div>
             <strong>Govt. Registered</strong>
-            <small>Licensed Nepal Trekking Operator</small>
+            <small>Licensed Nepal Tourism Operator #1892</small>
           </div>
         </div>
         <div className="trust-item-v2">
           <Users size={22} className="trust-icon" />
           <div>
-            <strong>Local Sherpa Team</strong>
-            <small>Experienced Mountain Born Guides</small>
+            <strong>100% Sherpa Led</strong>
+            <small>Local Mountain Born Expedition Crew</small>
           </div>
         </div>
         <div className="trust-item-v2">
           <Star size={22} className="trust-icon" fill="#f59e0b" color="#f59e0b" />
           <div>
             <strong>4.95 / 5 Rating</strong>
-            <small>Over 1,400+ Satisfied Trekkers</small>
+            <small>Over 1,400+ Satisfied Alpine Trekkers</small>
           </div>
         </div>
         <div className="trust-item-v2">
           <HeartHandshake size={22} className="trust-icon" />
           <div>
             <strong>Fair Porter Ethics</strong>
-            <small>IPPG 100% Welfare Adherent</small>
+            <small>IPPG 100% Welfare & Insurance Compliant</small>
           </div>
         </div>
       </div>
@@ -53,43 +67,53 @@ function TrustCredibilityStrip() {
 }
 
 /* ─────────────────────────────────────────────
-   HERO SLIDER DATA
+   HERO SLIDER DATA & COMPONENT WITH DISCOVERY TOOL
 ───────────────────────────────────────────── */
 const heroSlides = [
   {
     url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2000&q=85",
+    label: "Everest Base Camp & Kala Patthar",
+    subtitle: "Khumbu Glacier & 8,848m Summit Panorama",
+    region: "Khumbu",
   },
   {
-    url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzPhTTJoIYcXSjdtUSlXILMpI73TQjbuQKqKyp5rkJSfHqvhrPtX-lUJ0Q&s=10",
+    url: "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=2000&q=85",
+    label: "Annapurna Sanctuary & Thorong La",
+    subtitle: "Golden Sunrise over Dhaulagiri & Machhapuchhre",
+    region: "Annapurna",
   },
   {
     url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2000&q=85",
+    label: "Langtang Valley & Kyanjin Ri",
+    subtitle: "Living Tamang Heritage & Glacial Valleys",
+    region: "Langtang",
   },
   {
     url: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=2000&q=85",
-  }
+    label: "Gokyo Lakes & Cho La Pass",
+    subtitle: "Sacred Turquoise Alpine Waters & Ngozumpa Glacier",
+    region: "Khumbu",
+  },
 ];
 
-/* ─────────────────────────────────────────────
-   HERO COMPONENT — Balanced Offset & Humanized Copy
-───────────────────────────────────────────── */
 function HomeHero() {
   const [current, setCurrent] = useState(0);
   const timerRef = useRef(null);
+
   const total = heroSlides.length;
 
   const goTo = (idx) => {
     setCurrent(idx);
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setCurrent(prev => (prev + 1) % total);
-    }, 5500);
+      setCurrent((prev) => (prev + 1) % total);
+    }, 6000);
   };
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setCurrent(prev => (prev + 1) % total);
-    }, 5500);
+      setCurrent((prev) => (prev + 1) % total);
+    }, 6000);
     return () => clearInterval(timerRef.current);
   }, [total]);
 
@@ -106,32 +130,33 @@ function HomeHero() {
 
       <div className="hero-slider-overlay" />
 
-      {/* Balanced container with professional left padding offset */}
       <div className="section-wrap hero-slider-content" style={{ paddingLeft: "5%", paddingRight: "5%" }}>
-        <div className="hero-text-left" style={{ maxWidth: "680px" }}>
+        <div className="hero-text-left" style={{ maxWidth: "780px" }}>
           <span className="hero-kicker-tag">
-            🏔️ Himalayan Adventure · Born in the Mountains · Real Local Guides
+            Authentic Himalayan Expeditions · Local Sherpa Guided · 2026 Season
           </span>
 
           <h1>
             Discover the<br />
-            <em>Heart of Nepal</em><br />
+            <em>Pinnacles of Nepal</em><br />
             <span className="hero-h1-accent">on Foot.</span>
           </h1>
 
           <p className="hero-subtext">
-            No rushed tourist checklists or crowded itineraries. Just honest trails, raw mountain beauty, and deep connections built alongside guides who call these ridges home.
+            No rushed tourist itineraries. Authentic trails, raw mountain majesty, and intimate journeys
+            guided safely by native Sherpas who call these soaring peaks home.
           </p>
 
           <div className="hero-cta-row">
             <Link to="/treks" className="hero-primary-btn">
               Explore All Treks <ArrowRight size={20} />
             </Link>
-            <Link to="/contact" className="hero-secondary-btn">
-              Plan My Trek ↗
+            <Link to="/customize-trip" className="hero-secondary-btn">
+              Tailor-Made Expedition ↗
             </Link>
           </div>
 
+          {/* Real Credibility Stats */}
           <div className="hero-stats-row">
             <div className="hero-stat">
               <strong>1,400+</strong>
@@ -140,12 +165,12 @@ function HomeHero() {
             <div className="hero-stat-divider" />
             <div className="hero-stat">
               <strong>18+</strong>
-              <span>Years Experience</span>
+              <span>Years on Trail</span>
             </div>
             <div className="hero-stat-divider" />
             <div className="hero-stat">
-              <strong>40+</strong>
-              <span>Unique Routes</span>
+              <strong>100%</strong>
+              <span>Local Sherpa Staff</span>
             </div>
           </div>
         </div>
@@ -163,7 +188,7 @@ function HomeHero() {
             type="button"
             className={`slider-dot${current === idx ? " is-active" : ""}`}
             onClick={() => goTo(idx)}
-            aria-label={`Slide ${idx + 1}`}
+            aria-label={`Go to slide ${idx + 1}`}
           />
         ))}
       </div>
@@ -172,219 +197,440 @@ function HomeHero() {
 }
 
 /* ─────────────────────────────────────────────
-   HOME PAGE
+   ADVENTURE CATEGORIES / EXPEDITION STYLES
+───────────────────────────────────────────── */
+const adventureStyles = [
+  {
+    title: "High Alpine Passes",
+    count: "Cho La, Thorong La, Larkya La",
+    icon: Mountain,
+    desc: "Rigorous passes above 5,000m delivering panoramic ridge lines.",
+    to: "/treks?difficulty=Challenging",
+    image: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Base Camp Treks",
+    count: "Everest, Annapurna, Makalu",
+    icon: Compass,
+    desc: "Iconic journeys directly to the foot of world-famous summits.",
+    to: "/treks?search=base%20camp",
+    image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Sacred Glacial Lakes",
+    count: "Gokyo & Gosainkunda",
+    icon: Sparkles,
+    desc: "High altitude turquoise glacial tarns and pilgrimage waters.",
+    to: "/treks?search=lakes",
+    image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Scenic Teahouse Journeys",
+    count: "Poon Hill, Langtang Valley",
+    icon: Utensils,
+    desc: "Gentle mountain ascents with warm lodge hospitality & rhododendrons.",
+    to: "/treks?duration=1–6%20days",
+    image: "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=600&q=80",
+  },
+];
+
+/* ─────────────────────────────────────────────
+   CUSTOMER TESTIMONIALS
+───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   MAIN HOMEPAGE
 ───────────────────────────────────────────── */
 export function HomePage() {
-  const treks = useTreks();
-  const articles = useArticles();
-  const departures = useDepartures();
-  const regions = useRegions();
+  const notify = useToast();
 
-  const [activeRegion, setActiveRegion] = useState("All");
+  // Dynamic ranking states fetched from MongoDB
+  const [popularTreks, setPopularTreks] = useState([]);
+  const [featuredTreks, setFeaturedTreks] = useState([]);
+  const [topRatedTreks, setTopRatedTreks] = useState([]);
+  const [loadingRankings, setLoadingRankings] = useState(true);
+  const [testimonials, setTestimonials] = useState([]);
+  const [loadingTestimonials, setLoadingTestimonials] = useState(true);
 
-  const filterTabs = [
-    { label: "All Packages", val: "All" },
-    ...regions.map((r) => ({
-      label: r.label,
-      val: r.match[0] || r.id,
-    })),
-  ];
+  // Newsletter subscription
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [subscribed, setSubscribed] = useState(false);
 
-  const filteredTreks = treks.filter((t) => {
-    if (activeRegion === "All") return true;
-    return (
-      t.region?.toLowerCase().includes(activeRegion.toLowerCase()) ||
-      t.location?.toLowerCase().includes(activeRegion.toLowerCase())
-    );
-  });
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingRankings(true);
+
+    // Fetch dynamic rankings
+    Promise.allSettled([
+      api.rankings.getPopular({ limit: 6 }),
+      api.rankings.getFeatured({ limit: 6 }),
+      api.rankings.getTopRated({ limit: 6, minReviewsThreshold: 1 }),
+    ]).then(([popRes, featRes, topRes]) => {
+      if (!isMounted) return;
+
+      const fallbackTreks = dataStore.getTreks();
+
+      if (popRes.status === "fulfilled" && Array.isArray(popRes.value?.treks) && popRes.value.treks.length > 0) {
+        setPopularTreks(popRes.value.treks);
+      } else {
+        setPopularTreks(fallbackTreks.slice(0, 6));
+      }
+
+      if (featRes.status === "fulfilled" && Array.isArray(featRes.value?.treks) && featRes.value.treks.length > 0) {
+        setFeaturedTreks(featRes.value.treks);
+      } else {
+        const feat = fallbackTreks.filter((t) => t.featured);
+        setFeaturedTreks(feat.length > 0 ? feat : fallbackTreks.slice(0, 6));
+      }
+
+      if (topRes.status === "fulfilled" && Array.isArray(topRes.value?.treks) && topRes.value.treks.length > 0) {
+        setTopRatedTreks(topRes.value.treks);
+      } else {
+        setTopRatedTreks([]);
+      }
+      setLoadingRankings(false);
+    }).catch(() => {
+      if (!isMounted) return;
+      const fallbackTreks = dataStore.getTreks();
+      setPopularTreks(fallbackTreks.slice(0, 6));
+      setFeaturedTreks(fallbackTreks.filter((t) => t.featured).slice(0, 6));
+      setTopRatedTreks([]);
+      setLoadingRankings(false);
+    });
+
+    // Fetch dynamic approved customer reviews from MongoDB
+    api.reviews.getApproved({ limit: 3 })
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success && Array.isArray(res.reviews)) {
+          setTestimonials(res.reviews.map((r) => ({
+            name: r.name || r.user?.name || "Himalayan Adventurer",
+            country: r.verificationStatus === "Verified Trekker"
+              ? "Verified trekker"
+              : r.user?.nationality || "Unverified review",
+            trek: r.trek?.title || "Nepal Expedition",
+            title: r.title,
+            comment: r.comment,
+            rating: Math.min(5, Math.max(1, Math.round(Number(r.rating)))),
+          })));
+        }
+      })
+      .catch(() => {
+        if (isMounted) setTestimonials([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingTestimonials(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleNewsletterSubmit = (e) => {
+    e.preventDefault();
+    if (!newsletterEmail || !newsletterEmail.includes("@")) {
+      notify("Please provide a valid email address.");
+      return;
+    }
+    setSubscribed(true);
+    notify("Thank you for subscribing to our Himalayan dispatch!");
+  };
 
   return (
     <Page className="home-page-v2">
       <HomeHero />
       <TrustCredibilityStrip />
 
-      {/* ── BEST SELLING PACKAGES ────────────────── */}
-      <section className="section-wrap best-selling-section" id="packages">
+      {/* ════════════════════════════════════════════════════════
+          DISCOVERY SECTION 1: MOST POPULAR TREKS
+          Driven by Weighted Popularity Algorithm:
+          Score = (Confirmed Bookings × 5) + (Unique Views × 1) + (Wishlists × 2) + (Approved Reviews × 3)
+         ════════════════════════════════════════════════════════ */}
+      <section className="section-wrap discovery-section popular-treks-section" id="popular">
         <div className="section-title-center">
-          <span className="sub-badge-pill">NEPAL'S MOST POPULAR TRAILS</span>
+          <div className="section-badge-row">
+            <span className="sub-badge-pill">
+              <Flame size={14} className="inline-icon" fill="currentColor" />
+            </span>
+            <span className="algorithm-hint-pill" title="Formula: (Confirmed Bookings × 5) + (Unique Views × 1) + (Wishlists × 2) + (Approved Reviews × 3)">
+
+            </span>
+          </div>
+
           <h2 className="main-section-title">
-            Signature <span>Himalayan Journeys</span>
+            Nepal's Most <span>Popular Treks</span>
           </h2>
           <p className="section-intro-p">
-            Explore our handcrafted, top-rated journeys trusted by over 1,400 trekkers worldwide.
-            Each route is guided by our certified Sherpa team.
+            Ranked dynamically by verified booking volume, trekker wishlists, authentic reviews, and real trail interest.
           </p>
         </div>
 
-        <div className="package-tabs-row">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab.val}
-              type="button"
-              className={`package-tab-btn${activeRegion === tab.val ? " is-active" : ""}`}
-              onClick={() => setActiveRegion(tab.val)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="best-selling-grid">
-          {filteredTreks.slice(0, 8).map((trek) => (
-            <TrekCard key={trek.slug} trek={trek} />
-          ))}
-        </div>
+        {loadingRankings && popularTreks.length === 0 ? (
+          <div className="ranking-loading-grid">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="trek-skeleton-card" />
+            ))}
+          </div>
+        ) : popularTreks.length > 0 ? (
+          <div className="best-selling-grid">
+            {popularTreks.map((trek) => (
+              <TrekCard key={trek.slug || trek._id} trek={trek} badge="Popular" />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-discovery-notice">
+            <p>Our trails are getting geared up for the new season.</p>
+          </div>
+        )}
 
         <div className="center-view-all">
-          <Link to="/treks" className="hero-primary-btn">
-            View All 2026–2027 Packages <ArrowRight size={18} />
+          <Link to="/treks?sort=popular" className="hero-primary-btn">
+            View All Trending Expeditions <ArrowRight size={18} />
           </Link>
         </div>
       </section>
 
-      {/* ── GROUP JOINING TREKS / FIXED DEPARTURES ─ */}
-      <section className="group-departures-section" id="group-departures">
-        <div className="section-wrap">
-          <div className="section-title-center">
-            <span className="sub-badge-pill">GUARANTEED DEPARTURES</span>
-            <h2 className="main-section-title">
-              Group Joining <span>Treks & Fixed Dates</span>
-            </h2>
-            <p className="section-intro-p">
-              Join a small group, save up to 25%, and meet fellow trekkers from around the globe.
-              All dates are guaranteed once confirmed.
-            </p>
+      {/* ════════════════════════════════════════════════════════
+          DISCOVERY SECTION 2: ADMIN-CONTROLLED FEATURED TREKS
+          Driven by manual display order and admin flagship flags
+         ════════════════════════════════════════════════════════ */}
+      <section className="section-wrap discovery-section featured-treks-section" id="featured">
+        <div className="section-title-center">
+          <div className="section-badge-row">
+            <span className="sub-badge-pill" style={{ background: "#dbeafe", color: "#1d4ed8" }}>
+              <Sparkles size={14} className="inline-icon" />
+            </span>
           </div>
 
-          <div className="departures-table-card">
-            <div className="table-responsive-wrap">
-              <table className="home-departures-table">
-                <thead>
-                  <tr>
-                    <th>Trek Package</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Status</th>
-                    <th>Price / PAX</th>
-                    <th>Seats Left</th>
-                    <th>Booking</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {departures.map((dep) => (
-                    <tr key={dep.id}>
-                      <td>
-                        <Link to={`/treks/${dep.trekSlug}`} className="dep-trek-title">
-                          {dep.trekTitle}
-                        </Link>
-                      </td>
-                      <td><strong>{dep.startDate}</strong></td>
-                      <td>{dep.endDate}</td>
-                      <td>
-                        <span className={`status-pill status-${dep.status.toLowerCase().replace(/\s+/g, "-")}`}>
-                          {dep.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="table-price-box">
-                          <span className="table-orig-price">${dep.originalPrice}</span>
-                          <strong className="table-current-price">${dep.price}</strong>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="seats-indicator">
-                          {dep.availableSeats} of {dep.totalSeats} seats
-                        </span>
-                      </td>
-                      <td>
-                        <Link
-                          to={`/booking/${dep.trekSlug}?date=${dep.startDate}`}
-                          className="join-now-btn"
-                        >
-                          Join Now ↗
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <h2 className="main-section-title">
+            Featured <span>Himalayan Journeys</span>
+          </h2>
+          <p className="section-intro-p">
+            Hand-selected by our IFMGA certified expedition leaders for quintessential vistas, cultural depth, and unmatched high-altitude memories.
+          </p>
+        </div>
+
+        {loadingRankings && featuredTreks.length === 0 ? (
+          <div className="ranking-loading-grid">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="trek-skeleton-card" />
+            ))}
           </div>
+        ) : featuredTreks.length > 0 ? (
+          <div className="best-selling-grid">
+            {featuredTreks.map((trek) => (
+              <TrekCard key={trek.slug || trek._id} trek={trek} badge="Featured" />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="center-view-all">
+          <Link to="/treks" className="hero-secondary-btn" style={{ borderColor: "#083c34", color: "#083c34" }}>
+            Explore Full Himalayan Catalog <ArrowRight size={18} />
+          </Link>
         </div>
       </section>
 
-      {/* ── WHY TREK WITH US ──────────────────────── */}
+      {/* ════════════════════════════════════════════════════════
+          ADVENTURE CATEGORIES / STYLES
+         ════════════════════════════════════════════════════════ */}
+      <section className="section-wrap adventure-styles-section">
+        <div className="section-title-center">
+          <span className="sub-badge-pill"></span>
+          <h2 className="main-section-title">
+            Find Your <span>Mountain Calling</span>
+          </h2>
+          <p className="section-intro-p">
+            From high glaciated mountain crossings to peaceful monastery paths, find the expedition tailored to your fitness and ambition.
+          </p>
+        </div>
+
+        <div className="styles-grid">
+          {adventureStyles.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link to={item.to} key={item.title} className="style-card-item">
+                <div className="style-card-bg" style={{ backgroundImage: `url("${item.image}")` }} />
+                <div className="style-card-overlay" />
+                <div className="style-card-content">
+                  <div className="style-icon-bubble">
+                    <Icon size={24} />
+                  </div>
+                  <h3>{item.title}</h3>
+                  <span className="style-routes-label">{item.count}</span>
+                  <p>{item.desc}</p>
+                  <span className="style-link-action">
+                    Browse Routes <ChevronRight size={16} />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════
+          DISCOVERY SECTION 3: TOP RATED TREKS
+          Driven by Verified Customer Reviews with Minimum Threshold
+         ════════════════════════════════════════════════════════ */}
+      <section className="section-wrap discovery-section top-rated-treks-section" id="top-rated">
+        <div className="section-title-center">
+          <div className="section-badge-row">
+            <span className="sub-badge-pill" style={{ background: "#fef3c7", color: "#b45309" }}>
+              <Star size={14} className="inline-icon" fill="currentColor" />
+            </span>
+          </div>
+
+          <h2 className="main-section-title">
+            Top Rated <span>Customer Favorites</span>
+          </h2>
+          <p className="section-intro-p">
+            Calculated dynamically from verified, approved traveler reviews with rigorous safety and service satisfaction scores.
+          </p>
+        </div>
+
+        {loadingRankings && topRatedTreks.length === 0 ? (
+          <div className="ranking-loading-grid">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="trek-skeleton-card" />
+            ))}
+          </div>
+        ) : topRatedTreks.length > 0 ? (
+          <div className="best-selling-grid">
+            {topRatedTreks.map((trek) => (
+              <TrekCard key={trek.slug || trek._id} trek={trek} badge="Top Rated" />
+            ))}
+          </div>
+        ) : (
+          <p className="testimonials-empty-state">Top-rated treks will appear after completed travelers submit approved reviews.</p>
+        )}
+
+        <div className="center-view-all">
+          <Link to="/treks?sort=rating" className="hero-primary-btn">
+            View All Top Rated Routes <ArrowRight size={18} />
+          </Link>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════
+          WHY CHOOSE US: SHERPA SAFETY & HERITAGE
+         ════════════════════════════════════════════════════════ */}
       <section className="why-us-section">
         <div className="section-wrap">
           <div className="section-title-center">
-            <span className="sub-badge-pill">THE LOCAL SHERPA ADVANTAGE</span>
+            <span className="sub-badge-pill">THE LOCAL ADVANTAGE</span>
             <h2 className="main-section-title">
-              Why Trek <span>With Agaaman?</span>
+              Why Trek With <span>Agaaman?</span>
             </h2>
             <p className="section-intro-p">
-              We don't outsource to third-party operators. You are guided by the very people who were
-              born and raised in these valleys — that's a promise only we can make.
+              We never broker your trip to anonymous subcontractors. Every single departure is led
+              by our veteran, certified Sherpa guides who grew up among these 8,000-meter peaks.
             </p>
           </div>
 
           <div className="why-us-grid">
             <div className="why-card">
               <div className="why-icon-box"><ShieldCheck size={28} /></div>
-              <h3>100% Success & Zero-Rescue</h3>
-              <p>Our slow acclimatization profiles and daily oxygen checks ensure every trekker reaches the summit safely without altitude distress.</p>
+              <h3>Wilderness Medicine & Pulse Oximeters</h3>
+              <p>Daily biometric monitoring, altitude protocols, Gamow bags, and 24/7 direct helicopter evacuation coordination guarantee your safety.</p>
             </div>
             <div className="why-card">
               <div className="why-icon-box"><Users size={28} /></div>
-              <h3>Small Intimate Groups</h3>
-              <p>Never lost in a crowd. Our group sizes are capped at 8 to 12 trekkers, maintaining high guide-to-client ratios for personal attention.</p>
+              <h3>Intimate Small Groups (Max 10-12)</h3>
+              <p>Never get lost in a crowded tourist herd. High guide-to-client ratios provide personal pacing, flexible photo stops, and genuine Sherpa stories.</p>
             </div>
             <div className="why-card">
               <div className="why-icon-box"><Utensils size={28} /></div>
-              <h3>Warm Teahouses & Wholesome Meals</h3>
-              <p>Sleep in the best local lodges. Enjoy freshly cooked nutritious meals with organic local produce and pure filtered water at every stop.</p>
+              <h3>Best Teahouses & Wholesome Meals</h3>
+              <p>Rest in top local mountain lodges with warm bukhari stoves. Enjoy clean, freshly prepared meals with organic Himalayan vegetables and pure water.</p>
             </div>
             <div className="why-card">
               <div className="why-icon-box"><HeartHandshake size={28} /></div>
-              <h3>Ethical Porter Treatment</h3>
-              <p>We respect our mountain porters with fair wages, medical insurance, proper high-altitude gear, and strictly enforced weight limits.</p>
+              <h3>Ethical Porter Welfare Guarantee</h3>
+              <p>We honor our porters with fair living wages, comprehensive mountain medical insurance, insulated clothing, and strictly capped pack weights.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── LATEST BLOGS ─────────────────────────── */}
-      <section className="section-wrap home-blogs-section" id="blogs">
+      {/* ════════════════════════════════════════════════════════
+          CUSTOMER TESTIMONIALS
+         ════════════════════════════════════════════════════════ */}
+      <section className="section-wrap testimonials-section">
         <div className="section-title-center">
-          <span className="sub-badge-pill">FIELD STORIES & ADVICE</span>
+          <span className="sub-badge-pill">TREKKER EXPERIENCES</span>
           <h2 className="main-section-title">
-            Latest <span>Blogs & Posts</span>
+            Words From <span>The High Trails</span>
           </h2>
           <p className="section-intro-p">
-            Practical advice, gear guides, and trail wisdom straight from our Sherpa guides and the trekkers who walked before you.
+            Approved feedback from travelers. Verified trekker reviews are linked to completed bookings.
           </p>
         </div>
 
-        <div className="home-blogs-grid">
-          {articles.map((article) => (
-            <article key={article.slug} className="home-blog-card">
-              <Link to={`/journal/${article.slug}`} className="blog-img-link">
-                <img src={article.image} alt={article.title} loading="lazy" />
-                <span className="blog-cat-badge">{article.category}</span>
-              </Link>
-              <div className="blog-card-body">
-                <span className="blog-read-time">{article.read}</span>
-                <h3 className="blog-card-title">
-                  <Link to={`/journal/${article.slug}`}>{article.title}</Link>
-                </h3>
-                <p className="blog-card-summary">{article.summary}</p>
-                <Link to={`/journal/${article.slug}`} className="blog-read-more">
-                  Read Article <ArrowRight size={15} />
-                </Link>
+        {loadingTestimonials ? (
+          <p className="testimonials-empty-state" role="status">Loading approved traveler reviews…</p>
+        ) : testimonials.length ? (
+          <div className="testimonials-grid">
+          {testimonials.map((rev, idx) => (
+            <div key={idx} className="testimonial-card">
+              <div className="testimonial-rating">
+                {[...Array(rev.rating)].map((_, i) => (
+                  <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />
+                ))}
               </div>
-            </article>
+              {rev.title && <h3 className="testimonial-title">{rev.title}</h3>}
+              <p className="testimonial-comment">"{rev.comment}"</p>
+              <div className="testimonial-author">
+                <div className="author-avatar-badge">
+                  {rev.name.charAt(0)}
+                </div>
+                <div>
+                  <strong>{rev.name}</strong>
+                  <span className="author-country">{rev.country}</span>
+                  <span className="author-trek-tag">{rev.trek}</span>
+                </div>
+              </div>
+            </div>
           ))}
+          </div>
+        ) : (
+          <div className="testimonials-empty-state">
+            <Star size={22} />
+            <p>No approved trek reviews yet. Complete a trek to share your experience.</p>
+          </div>
+        )}
+      </section>
+
+      {/* ════════════════════════════════════════════════════════
+          NEWSLETTER & TRAIL ADVISORY
+         ════════════════════════════════════════════════════════ */}
+      <section className="newsletter-section">
+        <div className="section-wrap newsletter-inner">
+
+
+          <form onSubmit={handleNewsletterSubmit} className="newsletter-form">
+            <div className="newsletter-input-group">
+              <Mail size={18} className="mail-icon" />
+              <input
+                type="email"
+                placeholder="Enter your email address..."
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
+                disabled={subscribed}
+                required
+              />
+              <button type="submit" className="newsletter-submit-btn" disabled={subscribed}>
+                {subscribed ? "Subscribed!" : "Subscribe"}
+              </button>
+            </div>
+            <small className="newsletter-privacy-note">
+              No spam, ever. Unsubscribe with a single click whenever you wish.
+            </small>
+          </form>
         </div>
       </section>
     </Page>
   );
 }
+
+export default HomePage;

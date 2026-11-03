@@ -93,3 +93,28 @@ export async function updateUserStatus(req, res, next) {
     next(error);
   }
 }
+
+// DELETE /api/users/:id (Admin)
+export async function deleteUser(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (id.toString() === req.user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot delete your own admin account.",
+      });
+    }
+
+    const user = await User.findByIdAndDelete(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    res.json({
+      success: true,
+      message: `User ${user.email} removed successfully.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}

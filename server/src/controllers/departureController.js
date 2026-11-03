@@ -14,7 +14,11 @@ export async function getDepartures(req, res, next) {
       if (trek) query.trek = trek._id;
     }
 
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else if (upcoming === "true") {
+      query.status = { $in: ["Available", "Guaranteed", "Filling Fast"] };
+    }
 
     if (upcoming === "true") {
       query.startDate = { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) };
@@ -53,10 +57,23 @@ export async function createDeparture(req, res, next) {
       });
     }
 
+    const parsedStartDate = new Date(startDate);
+    const parsedEndDate = new Date(endDate);
+    if (
+      Number.isNaN(parsedStartDate.getTime()) ||
+      Number.isNaN(parsedEndDate.getTime()) ||
+      parsedEndDate < parsedStartDate
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Departure end date must be on or after a valid start date.",
+      });
+    }
+
     const departure = await Departure.create({
       trek: targetTrekId,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
       capacity: Number(capacity),
       price: Number(price),
       originalPrice: originalPrice ? Number(originalPrice) : null,
@@ -79,14 +96,55 @@ export async function createDeparture(req, res, next) {
 export async function updateDeparture(req, res, next) {
   try {
     const { id } = req.params;
-    const departure = await Departure.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    }).populate("trek", "title slug");
+    const { trekId, trekSlug, ...fields } = req.body;
+    if (trekId || trekSlug) {
+      let targetTrekId = trekId;
+      if (!targetTrekId) {
+        const trek = await Trek.findOne({ slug: trekSlug });
+        if (!trek) {
+          return res.status(404).json({ success: false, message: "Trek not found." });
+        }
+        targetTrekId = trek._id;
+      }
+      fields.trek = targetTrekId;
+    }
 
+    const departure = await Departure.findById(id);
     if (!departure) {
       return res.status(404).json({ success: false, message: "Departure not found." });
     }
+    if (fields.capacity !== undefined && Number(fields.capacity) < departure.bookedCount) {
+      return res.status(400).json({
+        success: false,
+        message: `Capacity cannot be lower than the ${departure.bookedCount} already-booked seat(s).`,
+      });
+    }
+    if (
+      fields.trek &&
+      fields.trek.toString() !== departure.trek.toString() &&
+      departure.bookedCount > 0
+    ) {
+      return res.status(409).json({
+        success: false,
+        message: "A departure with existing bookings cannot be reassigned to another trek.",
+      });
+    }
+    const nextStartDate = fields.startDate ? new Date(fields.startDate) : departure.startDate;
+    const nextEndDate = fields.endDate ? new Date(fields.endDate) : departure.endDate;
+    if (
+      Number.isNaN(nextStartDate.getTime()) ||
+      Number.isNaN(nextEndDate.getTime()) ||
+      nextEndDate < nextStartDate
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Departure end date must be on or after a valid start date.",
+      });
+    }
+
+    Object.assign(departure, fields);
+    await departure.save();
+    await departure.populate("trek", "title slug");
 
     res.json({
       success: true,
@@ -102,10 +160,17 @@ export async function updateDeparture(req, res, next) {
 export async function deleteDeparture(req, res, next) {
   try {
     const { id } = req.params;
-    const departure = await Departure.findByIdAndDelete(id);
+    const departure = await Departure.findById(id);
     if (!departure) {
       return res.status(404).json({ success: false, message: "Departure not found." });
     }
+    if (departure.bookedCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "This departure has active bookings. Close or cancel it instead of deleting it.",
+      });
+    }
+    await departure.deleteOne();
     res.json({
       success: true,
       message: "Departure deleted.",

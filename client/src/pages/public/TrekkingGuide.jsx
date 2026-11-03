@@ -27,12 +27,12 @@ import {
 } from "lucide-react";
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { SectionHeading } from "../../components/common/SectionHeading.jsx";
-import { DemoBanner } from "../../components/common/PagePrimitives.jsx";
+import { useGuides } from "../../hooks/useDataStore.js";
 
 const guideTabs = [
   { id: "altitude", label: "Altitude & Acclimatization", icon: Mountain },
-  { id: "permits", label: "Permits & TIMS 2026", icon: FileText },
-  { id: "packing", label: "Interactive Gear Checklist", icon: Package },
+  { id: "permits", label: "Permits & TIMS", icon: FileText },
+  { id: "packing", label: "Packing Checklist", icon: Package },
   { id: "seasons", label: "Seasons & Weather", icon: Sun },
   { id: "culture", label: "Teahouse & Sherpa Culture", icon: HeartHandshake },
   { id: "faq", label: "Trail FAQs", icon: HelpCircle }
@@ -102,6 +102,16 @@ const initialPackingList = [
 export function TrekkingGuidePage() {
   const [activeTab, setActiveTab] = useState("altitude");
   const [packingList, setPackingList] = useState(initialPackingList);
+  const guides = useGuides();
+
+  const altitudeRulesGuide = guides.find((g) => g.type === "rules" || g.id === "guide-altitude-rules");
+  const dynamicRules = altitudeRulesGuide?.rules || [
+    { id: "r1", title: "Never ascend with symptoms of AMS:", text: "If you have a persistent headache, nausea, or dizziness, you MUST stay at your current altitude until fully resolved." },
+    { id: "r2", title: "If symptoms worsen, descend immediately:", text: "Descending just 300 to 500 meters is often the single most life-saving intervention. Never wait until morning if symptoms escalate." },
+    { id: "r3", title: "Never leave a sick trekker alone:", text: "Always descend accompanied by an experienced Sherpa guide or fellow trekker." }
+  ];
+
+  const dynamicArticles = guides.filter((g) => g.category === activeTab && g.type === "article");
 
   const toggleItem = (catIndex, itemId) => {
     setPackingList((prev) =>
@@ -126,22 +136,18 @@ export function TrekkingGuidePage() {
 
   return (
     <Page className="guide-page">
-      <DemoBanner />
-
       {/* Guide Hero */}
       <section className="guide-hero section-wrap">
         <div className="guide-hero-copy">
-          <p className="eyebrow">Himalayan Field Manual · Sherpa Wisdom</p>
-          <h1>The Complete<br /><em>Trekking Guide.</em></h1>
+          <p className="eyebrow">Before you head to the mountains</p>
+          <h1>A practical guide<br /><em>to trekking in Nepal.</em></h1>
           <p className="guide-hero-desc">
-            Everything you need to know before stepping foot on Nepal’s high trails. 
-            Real, honest, practical advice on altitude health, permits, packing essentials, 
-            and the cultural heartbeat of the teahouses—written by those who live and breathe these passes.
+            A few useful things to know before you go: how to plan for altitude, what to pack, how permits work, and what to expect on the trail.
           </p>
           <div className="guide-hero-badges">
-            <span><ShieldCheck size={16} /> Updated for 2026 Trail Rules</span>
-            <span><Mountain size={16} /> Wilderness Medicine Backed</span>
-            <span><HeartHandshake size={16} /> Ethical Porter Welfare</span>
+            <span><ShieldCheck size={16} /> Plan a steady ascent</span>
+            <span><Mountain size={16} /> Pack for the season</span>
+            <span><HeartHandshake size={16} /> Travel with respect</span>
           </div>
         </div>
       </section>
@@ -184,13 +190,16 @@ export function TrekkingGuidePage() {
             </div>
 
             <div className="guide-alert-box">
-              <div className="guide-alert-icon"><AlertTriangle size={24} /></div>
+              <div className="guide-alert-icon"><AlertTriangle size={28} /></div>
               <div className="guide-alert-text">
-                <h3>The 3 Ironclad Rules of High Altitude</h3>
+                <h3>{altitudeRulesGuide?.title || "The 3 Ironclad Rules of High Altitude"}</h3>
                 <ul>
-                  <li><strong>Never ascend with symptoms of AMS:</strong> If you have a persistent headache, nausea, or dizziness, you MUST stay at your current altitude until fully resolved.</li>
-                  <li><strong>If symptoms worsen, descend immediately:</strong> Descending just 300 to 500 meters is often the single most life-saving intervention. Never wait until morning if symptoms escalate.</li>
-                  <li><strong>Never leave a sick trekker alone:</strong> Always descend accompanied by an experienced Sherpa guide or fellow trekker.</li>
+                  {dynamicRules.map((rule, idx) => (
+                    <li key={rule.id || idx}>
+                      <strong>{rule.title} </strong>
+                      <span>{rule.text}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -235,6 +244,14 @@ export function TrekkingGuidePage() {
                   typical dose is 125mg twice daily starting 24h before reaching 3,000m.
                 </p>
               </article>
+
+              {dynamicArticles.map((art, idx) => (
+                <article className="guide-feature-card" key={art.id || idx}>
+                  <span className="card-num">{(idx + 5).toString().padStart(2, "0")}</span>
+                  <h3>{art.title}</h3>
+                  <p>{art.content || art.summary}</p>
+                </article>
+              ))}
             </div>
 
             <div className="symptoms-comparison">
@@ -346,6 +363,27 @@ export function TrekkingGuidePage() {
                   <li><em>Rule:</em> Must be booked through a registered Nepal agency with minimum 2 trekkers + licensed guide</li>
                 </ul>
               </div>
+
+              {dynamicArticles.length > 0 && (
+                <div style={{ marginTop: "24px" }}>
+                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
+                    Additional Official Notices & Guidelines
+                  </h3>
+                  <div className="permits-grid">
+                    {dynamicArticles.map((art) => (
+                      <div key={art.id} className="permit-card" style={{ borderLeft: "4px solid #083c34" }}>
+                        <div className="permit-card-header">
+                          <h3>{art.title}</h3>
+                          <span className="permit-price">Advisory</span>
+                        </div>
+                        <p style={{ marginTop: "8px", fontSize: "0.93rem", color: "#475569", lineHeight: "1.6" }}>
+                          {art.content || art.summary}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Reveal>
         )}
@@ -490,6 +528,25 @@ export function TrekkingGuidePage() {
                   <div><strong>Trail Vibe:</strong> Agricultural life</div>
                 </div>
               </div>
+
+              {dynamicArticles.length > 0 && (
+                <div style={{ marginTop: "24px" }}>
+                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
+                    Seasonal Advisories & Micro-Climate Guides
+                  </h3>
+                  <div className="seasons-grid">
+                    {dynamicArticles.map((art) => (
+                      <div key={art.id} className="season-card">
+                        <div className="season-title-row">
+                          <h3>{art.title}</h3>
+                          <span>Trail Advisory</span>
+                        </div>
+                        <p className="season-desc">{art.content || art.summary}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Reveal>
         )}
@@ -558,6 +615,23 @@ export function TrekkingGuidePage() {
                   customary tip of ~$15–$20/day total split among your trekking group.
                 </p>
               </article>
+
+              {dynamicArticles.length > 0 && (
+                <div style={{ marginTop: "24px", gridColumn: "1 / -1" }}>
+                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
+                    Community & Monastery Etiquette Guides
+                  </h3>
+                  <div className="guide-cards-grid">
+                    {dynamicArticles.map((art) => (
+                      <article className="guide-feature-card" key={art.id}>
+                        <div className="feature-icon"><HeartHandshake size={20} /></div>
+                        <h3>{art.title}</h3>
+                        <p>{art.content || art.summary}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Reveal>
         )}
@@ -619,6 +693,20 @@ export function TrekkingGuidePage() {
                   instead of showering to avoid catching chills!
                 </p>
               </details>
+
+              {dynamicArticles.length > 0 && (
+                <div style={{ marginTop: "24px" }}>
+                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
+                    Additional Trail Inquiries & Updates
+                  </h3>
+                  {dynamicArticles.map((art) => (
+                    <details className="guide-faq-item" key={art.id} open>
+                      <summary>{art.title}</summary>
+                      <p>{art.content || art.summary}</p>
+                    </details>
+                  ))}
+                </div>
+              )}
             </div>
           </Reveal>
         )}

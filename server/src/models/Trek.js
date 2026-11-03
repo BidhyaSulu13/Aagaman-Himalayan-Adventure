@@ -138,6 +138,65 @@ const trekSchema = new Schema(
       default: false,
       index: true,
     },
+    featuredOrder: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    uniqueViewsCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    originalPrice: {
+      type: Number,
+      default: null,
+    },
+    discountPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+    groupCapacity: {
+      type: Number,
+      default: 12,
+      min: 1,
+    },
+    minGroupSize: {
+      type: Number,
+      min: 1,
+      default: 1,
+    },
+    transportation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    accommodation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    meals: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    tripType: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    highlights: {
+      type: [String],
+      default: [],
+    },
     published: {
       type: Boolean,
       default: true,

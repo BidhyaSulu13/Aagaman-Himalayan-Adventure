@@ -7,4 +7,6 @@ export { Review } from "./Review.js";
 export { Favorite } from "./Favorite.js";
 export { Article } from "./Article.js";
 export { TripRequest } from "./TripRequest.js";
+export { ContactMessage } from "./ContactMessage.js";
 export { Setting } from "./Setting.js";
+export { TrekView } from "./TrekView.js";

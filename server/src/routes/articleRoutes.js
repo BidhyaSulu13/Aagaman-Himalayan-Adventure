@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createArticle,
   deleteArticle,
+  getAdminArticles,
   getArticleBySlug,
   getArticles,
   updateArticle,
@@ -10,6 +11,7 @@ import { protect, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
+router.get("/admin", protect, requireAdmin, getAdminArticles);
 router.get("/", getArticles);
 router.get("/:slug", getArticleBySlug);
 router.post("/", protect, requireAdmin, createArticle);

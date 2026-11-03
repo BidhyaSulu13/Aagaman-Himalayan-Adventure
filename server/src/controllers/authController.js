@@ -62,8 +62,7 @@ export async function register(req, res, next) {
   }
 }
 
-// POST /api/auth/login
-export async function login(req, res, next) {
+async function authenticate(req, res, next, requiredRole) {
   try {
     const { email, password } = req.body;
 
@@ -97,6 +96,13 @@ export async function login(req, res, next) {
       });
     }
 
+    if (requiredRole && user.role !== requiredRole) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
     const token = signToken(user);
     setTokenCookie(res, token);
 
@@ -111,6 +117,16 @@ export async function login(req, res, next) {
   }
 }
 
+// POST /api/auth/login
+export function login(req, res, next) {
+  return authenticate(req, res, next);
+}
+
+// POST /api/auth/admin/login
+export function adminLogin(req, res, next) {
+  return authenticate(req, res, next, "admin");
+}
+
 // POST /api/auth/logout
 export async function logout(_req, res) {
   clearTokenCookie(res);
@@ -122,6 +138,13 @@ export async function logout(_req, res) {
 
 // GET /api/auth/me
 export async function getMe(req, res) {
+  if (!req.user) {
+    return res.json({
+      success: true,
+      user: null,
+    });
+  }
+
   res.json({
     success: true,
     user: sanitizeUser(req.user),

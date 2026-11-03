@@ -4,6 +4,7 @@ import {
   deleteTrek,
   getTrekBySlug,
   getTreks,
+  toggleArchiveTrek,
   toggleFeaturedTrek,
   togglePublishTrek,
   updateTrek,
@@ -21,5 +22,6 @@ router.put("/:id", protect, requireAdmin, updateTrek);
 router.delete("/:id", protect, requireAdmin, deleteTrek);
 router.patch("/:id/publish", protect, requireAdmin, togglePublishTrek);
 router.patch("/:id/featured", protect, requireAdmin, toggleFeaturedTrek);
+router.patch("/:id/archive", protect, requireAdmin, toggleArchiveTrek);
 
 export default router;

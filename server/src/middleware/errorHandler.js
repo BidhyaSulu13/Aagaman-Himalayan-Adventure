@@ -9,6 +9,13 @@ export function errorHandler(err, _req, res, _next) {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message || "An unexpected server error occurred.";
 
+  if (
+    err.name === "MulterError" ||
+    message.startsWith("Only JPEG, PNG, and WebP")
+  ) {
+    statusCode = 400;
+  }
+
   // Mongoose Bad ObjectId
   if (err.name === "CastError") {
     statusCode = 400;

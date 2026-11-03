@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_himalayan_jwt_key_2026_agaaman_secret_trekking";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export function signToken(user) {
   return jwt.sign(

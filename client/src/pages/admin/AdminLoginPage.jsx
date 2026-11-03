@@ -1,34 +1,33 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, KeyRound, Lock, Mountain, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowLeft, KeyRound, Lock, Mountain, ShieldAlert } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import "./AdminDashboard.css";
 
 export function AdminLoginPage() {
-  const { login, user, isAdmin } = useAuth();
+  const { loginAdmin, user, isAdmin, loading: authLoading } = useAuth();
   const notify = useToast();
   const navigate = useNavigate();
 
-  // Pre-filled default credentials for 1-click test login
-  const [email, setEmail] = useState("admin@agaaman.com");
-  const [password, setPassword] = useState("admin123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // If already logged in as admin, redirect to admin dashboard
-  if (user && isAdmin) {
-    navigate("/admin/dashboard", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!authLoading && user && isAdmin) {
+      navigate("/admin/dashboard", { replace: true });
+    }
+  }, [authLoading, isAdmin, navigate, user]);
 
   const handleAdminLogin = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setErrorMsg("");
     setLoading(true);
 
     try {
-      const res = await login(email, password);
+      const res = await loginAdmin(email.trim(), password);
       if (res.success) {
         notify("Welcome to Agaaman Admin Console");
         navigate("/admin/dashboard", { replace: true });
@@ -42,10 +41,7 @@ export function AdminLoginPage() {
     }
   };
 
-  const fillCredentials = (em, pw) => {
-    setEmail(em);
-    setPassword(pw);
-  };
+  if (authLoading || (user && isAdmin)) return null;
 
   return (
     <div className="admin-login-fullscreen">
@@ -77,20 +73,6 @@ export function AdminLoginPage() {
             </p>
           </div>
 
-          {/* Quick 1-click test credentials badge */}
-          <div className="admin-test-pill" onClick={() => fillCredentials("admin@agaaman.com", "admin123456")}>
-            <div className="test-pill-left">
-              <Sparkles size={16} className="sparkle-icon" />
-              <div>
-                <strong>Pre-Filled Developer Credentials</strong>
-                <p>admin@agaaman.com · admin123456</p>
-              </div>
-            </div>
-            <span className="ready-badge">
-              <CheckCircle2 size={14} /> Ready
-            </span>
-          </div>
-
           {errorMsg && (
             <div className="admin-login-error">
               <ShieldAlert size={18} />
@@ -109,8 +91,11 @@ export function AdminLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@agaaman.com"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   autoComplete="username"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -118,7 +103,7 @@ export function AdminLoginPage() {
             <div className="admin-input-group">
               <div className="admin-label-row">
                 <label htmlFor="admin-password">Secure Password</label>
-                <span className="admin-hint">Pre-filled for instant testing</span>
+                <span className="admin-hint">Use your administrator account password</span>
               </div>
               <div className="admin-input-wrap">
                 <input
@@ -129,6 +114,7 @@ export function AdminLoginPage() {
                   placeholder="••••••••••••"
                   autoComplete="current-password"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>

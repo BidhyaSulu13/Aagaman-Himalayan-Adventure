@@ -27,7 +27,7 @@ export function PolicyPage({ kind }) {
         <div className="article-body">
           {isPrivacy ? <>
             <h2>What this demo stores</h2>
-            <p>Saved trek choices are stored in local browser storage on this device. No account, booking, contact message or newsletter subscription is sent to a server by this frontend.</p>
+            <p>Saved trek choices are stored in local browser storage on this device. Account, booking, contact, and review forms may send personal information to the configured API and store it in its database. Configure and review data retention, access controls, and email delivery before using this project with real travelers.</p>
             <h2>External services</h2>
             <p>Map tiles are provided by OpenStreetMap contributors. Images and web fonts load from their respective external hosts and may transmit normal browser request information to those providers.</p>
             <h2>When this becomes a live service</h2>
@@ -36,7 +36,7 @@ export function PolicyPage({ kind }) {
             <h2>Demonstration content</h2>
             <p>Trek descriptions, routes, prices, coordinates and editorial content on this site are illustrative. They are not a live offer, verified itinerary, availability statement or safety recommendation.</p>
             <h2>No bookings or travel advice</h2>
-            <p>Submitting a form does not make a reservation, create an account or initiate payment. Verify current trail conditions, permits, health guidance and local arrangements with qualified sources.</p>
+            <p>A booking form submits a request for operator review; it does not confirm a reservation or process payment. Verify current trail conditions, permits, health guidance and local arrangements with qualified sources.</p>
             <h2>Before public launch</h2>
             <p>Replace this draft with reviewed terms, policies, operator information and support contacts appropriate to the final service.</p>
           </>}

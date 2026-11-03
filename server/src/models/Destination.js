@@ -24,6 +24,10 @@ const destinationSchema = new Schema(
       trim: true,
       index: true,
     },
+    elevation: {
+      type: Number,
+      default: 0,
+    },
     description: {
       type: String,
       required: [true, "Description is required"],
@@ -41,6 +45,38 @@ const destinationSchema = new Schema(
       default: ["Spring", "Autumn"],
     },
     highlights: {
+      type: [String],
+      default: [],
+    },
+    attractions: [
+      {
+        name: { type: String, default: "" },
+        type: { type: String, default: "Landmark" },
+        description: { type: String, default: "" },
+      },
+    ],
+    accommodationTypes: [
+      {
+        type: { type: String, default: "Teahouse" },
+        badge: { type: String, default: "" },
+        description: { type: String, default: "" },
+        amenities: { type: [String], default: [] },
+      },
+    ],
+    culturalHighlights: {
+      ethnicGroups: { type: [String], default: [] },
+      overview: { type: String, default: "" },
+      etiquette: { type: [String], default: [] },
+    },
+    nearbySideTrips: [
+      {
+        name: { type: String, default: "" },
+        duration: { type: String, default: "" },
+        elevation: { type: String, default: "" },
+        description: { type: String, default: "" },
+      },
+    ],
+    trekSlugs: {
       type: [String],
       default: [],
     },

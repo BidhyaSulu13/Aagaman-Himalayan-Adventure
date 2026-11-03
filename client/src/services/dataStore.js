@@ -1,12 +1,62 @@
 import { treks as initialTreks } from "../data/demoTreks.js";
 import { articles as initialArticles } from "../data/demoArticles.js";
 import { destinations as initialDestinations } from "../data/demoDestinations.js";
+import { regions as initialRegions } from "../data/demoRegions.js";
 
 const TREKS_STORAGE_KEY = "agaaman_treks_data_v2";
 const ARTICLES_STORAGE_KEY = "agaaman_articles_data_v2";
 const BOOKINGS_STORAGE_KEY = "agaaman_bookings_data_v2";
 const DEPARTURES_STORAGE_KEY = "agaaman_departures_data_v2";
-const DESTINATIONS_STORAGE_KEY = "agaaman_destinations_data_v2";
+const DESTINATIONS_STORAGE_KEY = "agaaman_destinations_data_v4";
+const REGIONS_STORAGE_KEY = "agaaman_regions_data_v3";
+const GUIDES_STORAGE_KEY = "agaaman_guides_data_v2";
+
+export const initialGuides = [
+  {
+    id: "guide-altitude-rules",
+    category: "altitude",
+    categoryLabel: "Altitude & Acclimatization",
+    title: "The 3 Ironclad Rules of High Altitude",
+    summary: "Wilderness medicine protocols followed strictly by Agaaman expedition Sherpas above 3,000 meters.",
+    type: "rules",
+    rules: [
+      { id: "r1", title: "Rule #1: Never Ascend With Symptoms", text: "If you have a headache, nausea, or dizziness, your rest day starts right now. Ascending higher with AMS can rapidly lead to life-threatening HAPE or HACE." },
+      { id: "r2", title: "Rule #2: Descend If Symptoms Worsen", text: "If your symptoms do not improve after 24 hours of rest, or if they worsen, you must descend immediately by at least 500 to 1,000 vertical meters." },
+      { id: "r3", title: "Rule #3: Never Leave an Ill Trekker Alone", text: "Altitude sickness impairs judgment, balance, and cognitive awareness. Always descend accompanied by a guide or companion with emergency oxygen." }
+    ],
+    updatedAt: "2026-04-15"
+  },
+  {
+    id: "guide-acclimatization-tips",
+    category: "altitude",
+    categoryLabel: "Altitude & Acclimatization",
+    title: "The Golden Rule: Climb High, Sleep Low",
+    summary: "How gradual ascent profiles allow your red blood cells to adapt naturally without artificial suppression.",
+    type: "article",
+    content: "Above 3,000m (9,840ft), limit daily sleeping elevation gains to 300m–500m per night. Take dedicated rest days at key milestones (Namche Bazaar 3,440m and Dingboche 4,410m in Khumbu; Manang 3,519m in Annapurna). Hike higher in the afternoon, then descend to sleep.",
+    updatedAt: "2026-04-18"
+  },
+  {
+    id: "guide-permits-2026",
+    category: "permits",
+    categoryLabel: "Permits & TIMS 2026",
+    title: "Nepal Trekking Permits & Mandatory Guide Regulations",
+    summary: "Official Nepal Tourism Board guidelines: All foreign trekkers in national parks and conservation areas must trek with a licensed guide.",
+    type: "article",
+    content: "Since 2023 and updated for the 2026 season, solo independent trekking without a licensed guide is prohibited across all major national parks (Sagarmatha, Annapurna, Langtang, and Manaslu). TIMS cards and local municipality entry receipts are coordinated by registered agencies.",
+    updatedAt: "2026-01-10"
+  },
+  {
+    id: "guide-sherpa-culture",
+    category: "culture",
+    categoryLabel: "Teahouse & Sherpa Culture",
+    title: "Sacred Mountain Etiquette & Teahouse Customs",
+    summary: "Understanding the Buddhist ethos of the Khumbu, Gurung traditions, and how to respect fragile alpine communities.",
+    type: "article",
+    content: "Always walk clockwise around prayer walls, stupas, and chortens. Never sit on mani stones carved with sacred mantras. Greet local villagers with 'Tashi Delek' or 'Namaste' with both palms together. Avoid wasting food in teahouses—everything is carried up on human backs.",
+    updatedAt: "2026-03-20"
+  }
+];
 
 const initialDepartures = [
   {
@@ -190,21 +240,38 @@ async function syncFromBackend() {
     if (destRes.ok) {
       const data = await destRes.json();
       if (data.success && Array.isArray(data.destinations) && data.destinations.length > 0) {
-        const mappedDests = data.destinations.map((d) => ({
-          id: d._id || d.id,
-          slug: d.slug,
-          name: d.name,
-          region: d.region,
-          label: d.label || d.name,
-          description: d.description,
-          lat: d.coordinates?.lat || d.lat || 27.8,
-          lng: d.coordinates?.lng || d.lng || 86.7,
-          image: d.images?.[0] || d.image || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
-          trekSlugs: d.trekSlugs || [],
-          highlights: d.highlights || [],
-          bestSeason: d.bestSeason || ["Spring", "Autumn"],
-        }));
-        setStored(DESTINATIONS_STORAGE_KEY, mappedDests);
+        const mappedDests = data.destinations.map((d) => {
+          const matchInitial = initialDestinations.find((init) => init.slug === d.slug);
+          return {
+            id: d._id || d.id,
+            slug: d.slug,
+            name: d.name,
+            region: d.region,
+            elevation: Number(d.elevation || matchInitial?.elevation || 0),
+            label: d.label || matchInitial?.label || d.name,
+            description: d.description || matchInitial?.description || "",
+            lat: d.coordinates?.lat || d.lat || matchInitial?.lat || 27.8,
+            lng: d.coordinates?.lng || d.lng || matchInitial?.lng || 86.7,
+            image: d.images?.[0] || d.image || matchInitial?.image || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
+            images: Array.isArray(d.images) && d.images.length > 0 ? d.images : (matchInitial?.images || [d.image || matchInitial?.image]),
+            trekSlugs: d.trekSlugs || matchInitial?.trekSlugs || [],
+            highlights: d.highlights || matchInitial?.highlights || [],
+            bestSeason: d.bestSeason || matchInitial?.bestSeason || ["Spring", "Autumn"],
+            attractions: d.attractions && d.attractions.length > 0 ? d.attractions : (matchInitial?.attractions || []),
+            accommodationTypes: d.accommodationTypes && d.accommodationTypes.length > 0 ? d.accommodationTypes : (matchInitial?.accommodationTypes || []),
+            culturalHighlights: d.culturalHighlights?.overview ? d.culturalHighlights : (matchInitial?.culturalHighlights || { ethnicGroups: [], overview: "", etiquette: [] }),
+            nearbySideTrips: d.nearbySideTrips && d.nearbySideTrips.length > 0 ? d.nearbySideTrips : (matchInitial?.nearbySideTrips || []),
+          };
+        });
+
+        // Keep all initial rich destinations that aren't on the backend yet
+        const combined = [...mappedDests];
+        initialDestinations.forEach((init) => {
+          if (!combined.some((c) => c.slug === init.slug)) {
+            combined.push(init);
+          }
+        });
+        setStored(DESTINATIONS_STORAGE_KEY, combined);
       }
     }
   } catch (err) {
@@ -346,30 +413,36 @@ export const dataStore = {
     setStored(DEPARTURES_STORAGE_KEY, list);
   },
 
-  // Destinations
+  // Destinations (Real Towns / Settlements / Staging Hubs)
   getDestinations() {
     return getStored(DESTINATIONS_STORAGE_KEY, initialDestinations);
   },
   getDestination(slug) {
     const list = this.getDestinations();
-    return list.find((d) => d.slug === slug);
+    return list.find((d) => d.slug === slug || (d.name && d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug));
   },
-  saveDestination(destData) {
+  saveDestination(destData, { persist = true } = {}) {
     const list = this.getDestinations();
     const slug = destData.slug || (destData.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const item = {
       id: destData.id || destData._id || "dest-" + Date.now(),
       slug,
       name: destData.name,
-      region: destData.region || destData.name,
+      region: destData.region || "Everest Region",
+      elevation: Number(destData.elevation || 0),
       label: destData.label || destData.name,
       description: destData.description || "",
       lat: Number(destData.lat || destData.coordinates?.lat || 27.8),
       lng: Number(destData.lng || destData.coordinates?.lng || 86.7),
       image: destData.image || (destData.images && destData.images[0]) || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
-      trekSlugs: destData.trekSlugs || [],
-      highlights: destData.highlights || [],
-      bestSeason: destData.bestSeason || ["Spring", "Autumn"],
+      images: Array.isArray(destData.images) && destData.images.length > 0 ? destData.images : [destData.image || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80"],
+      trekSlugs: Array.isArray(destData.trekSlugs) ? destData.trekSlugs : [],
+      highlights: Array.isArray(destData.highlights) ? destData.highlights : (destData.highlights ? destData.highlights.split("\n").map(s => s.trim()).filter(Boolean) : []),
+      bestSeason: Array.isArray(destData.bestSeason) ? destData.bestSeason : (destData.bestSeason ? destData.bestSeason.split(",").map(s => s.trim()).filter(Boolean) : ["Spring", "Autumn"]),
+      attractions: Array.isArray(destData.attractions) ? destData.attractions : [],
+      accommodationTypes: Array.isArray(destData.accommodationTypes) ? destData.accommodationTypes : [],
+      culturalHighlights: destData.culturalHighlights || { ethnicGroups: [], overview: "", etiquette: [] },
+      nearbySideTrips: Array.isArray(destData.nearbySideTrips) ? destData.nearbySideTrips : [],
     };
 
     const index = list.findIndex((d) => d.slug === slug || (destData.id && d.id === destData.id));
@@ -380,68 +453,222 @@ export const dataStore = {
     }
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
-    // Also persist to backend
-    fetch("/api/destinations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: item.name,
-        slug: item.slug,
-        region: item.region,
-        description: item.description,
-        images: [item.image],
-        coordinates: { lat: item.lat, lng: item.lng },
-        highlights: Array.isArray(item.highlights) ? item.highlights : [item.highlights],
-        bestSeason: Array.isArray(item.bestSeason) ? item.bestSeason : [item.bestSeason],
-      }),
-      credentials: "include",
-    }).catch(() => {});
+    if (persist) {
+      fetch("/api/destinations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: item.name,
+          slug: item.slug,
+          region: item.region,
+          elevation: item.elevation,
+          description: item.description,
+          images: item.images,
+          coordinates: { lat: item.lat, lng: item.lng },
+          highlights: item.highlights,
+          bestSeason: item.bestSeason,
+          attractions: item.attractions,
+          accommodationTypes: item.accommodationTypes,
+          culturalHighlights: item.culturalHighlights,
+          nearbySideTrips: item.nearbySideTrips,
+          trekSlugs: item.trekSlugs,
+        }),
+        credentials: "include",
+      }).catch(() => {});
+    }
 
     return item;
   },
-  deleteDestination(idOrSlug) {
+  deleteDestination(idOrSlug, { persist = true } = {}) {
     const list = this.getDestinations().filter(
       (d) => d.id !== idOrSlug && d.slug !== idOrSlug && d._id !== idOrSlug
     );
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
-    fetch(`/api/destinations/${idOrSlug}`, {
-      method: "DELETE",
-      credentials: "include",
-    }).catch(() => {});
+    if (persist) {
+      fetch(`/api/destinations/${idOrSlug}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).catch(() => {});
+    }
   },
 
-  // Dynamic Regions derived from Destinations and Treks
+  // Trekking Guides & Trail Rules
+  getGuides() {
+    return getStored(GUIDES_STORAGE_KEY, initialGuides);
+  },
+  getGuide(id) {
+    const list = this.getGuides();
+    return list.find((g) => g.id === id);
+  },
+  saveGuide(guideData) {
+    const list = this.getGuides();
+    const id = guideData.id || "guide-" + Date.now();
+    const item = {
+      ...guideData,
+      id,
+      updatedAt: new Date().toISOString().slice(0, 10),
+    };
+    const index = list.findIndex((g) => g.id === id);
+    if (index >= 0) {
+      list[index] = { ...list[index], ...item };
+    } else {
+      list.unshift(item);
+    }
+    setStored(GUIDES_STORAGE_KEY, list);
+    return item;
+  },
+  deleteGuide(id) {
+    const list = this.getGuides().filter((g) => g.id !== id);
+    setStored(GUIDES_STORAGE_KEY, list);
+  },
+
+  // Regions (Dedicated Regional Territories)
   getRegions() {
+    return getStored(REGIONS_STORAGE_KEY, initialRegions);
+  },
+
+  getRegion(slugOrId) {
+    const cleanId = (slugOrId || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const regions = this.getRegions();
+
+    // Look up with alias support (e.g. everest <-> khumbu)
+    const isEverest = cleanId.includes("everest") || cleanId.includes("khumbu");
+    const region = regions.find((r) => {
+      const rId = (r.id || "").toLowerCase();
+      const rSlug = (r.slug || "").toLowerCase();
+      const rName = (r.name || "").toLowerCase();
+      const rLabel = (r.label || "").toLowerCase();
+      if (isEverest && (rId.includes("everest") || rId.includes("khumbu") || rSlug.includes("everest") || rSlug.includes("khumbu") || rName.includes("khumbu") || rLabel.includes("everest"))) {
+        return true;
+      }
+      return (
+        rId === cleanId ||
+        rSlug === cleanId ||
+        rName === cleanId ||
+        cleanId.includes(rSlug) ||
+        rSlug.includes(cleanId) ||
+        cleanId.includes(rName)
+      );
+    });
+
     const dests = this.getDestinations();
-    const treks = this.getTreks();
-    const regionMap = new Map();
+    const allTreks = this.getTreks();
 
-    dests.forEach((d) => {
-      const name = d.region || d.name;
-      if (name) {
-        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        regionMap.set(id, {
-          id,
-          label: name.toLowerCase().includes("region") ? name : `${name} Region`,
-          match: [d.name, d.slug, d.region].filter(Boolean),
-        });
-      }
+    const searchTokens = [
+      cleanId,
+      region?.slug,
+      region?.name?.toLowerCase(),
+      region?.label?.toLowerCase(),
+      isEverest ? "khumbu" : null,
+      isEverest ? "everest" : null,
+    ].filter(Boolean);
+
+    // Match sub-destinations belonging to this region
+    const subDestinations = dests.filter((d) => {
+      const dReg = (d.region || "").toLowerCase();
+      return searchTokens.some((token) => dReg.includes(token));
     });
 
-    treks.forEach((t) => {
-      if (t.region) {
-        const id = t.region.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        if (!regionMap.has(id)) {
-          regionMap.set(id, {
-            id,
-            label: t.region.toLowerCase().includes("region") ? t.region : `${t.region} Region`,
-            match: [t.region],
-          });
-        }
-      }
+    // Match treks in this region
+    const matchingTreks = allTreks.filter((t) => {
+      const reg = (t.region || "").toLowerCase();
+      const loc = (t.location || "").toLowerCase();
+      const title = (t.title || "").toLowerCase();
+      return searchTokens.some((token) => reg.includes(token) || loc.includes(token) || title.includes(token));
     });
 
-    return Array.from(regionMap.values());
+    // Categorized treks by grading / difficulty / duration
+    const highGradeTreks = matchingTreks.filter(
+      (t) =>
+        t.duration >= 13 ||
+        t.elevation >= 5000 ||
+        t.difficulty?.toLowerCase().includes("challenging") ||
+        t.difficulty?.toLowerCase().includes("strenuous")
+    );
+    const moderateGradeTreks = matchingTreks.filter(
+      (t) =>
+        (t.duration >= 7 && t.duration < 13 && (t.elevation || 0) < 5000) ||
+        t.difficulty?.toLowerCase().includes("moderate")
+    );
+    const easyGradeTreks = matchingTreks.filter(
+      (t) => t.duration < 7 || t.difficulty?.toLowerCase().includes("easy")
+    );
+
+    return {
+      id: region ? region.id || region.slug : cleanId,
+      slug: region ? region.slug || region.id : cleanId,
+      name: region ? region.name : slugOrId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      label: region ? region.label : `${slugOrId.replace(/-/g, " ")} Region`,
+      tagline: region?.tagline || "Himalayan Territory · Protected Biosphere",
+      description: region?.description || "",
+      image:
+        region?.image ||
+        "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=80",
+      coordinates: region?.coordinates || { lat: 28.0, lng: 85.0 },
+      bestSeason: region?.bestSeason || ["Spring", "Autumn"],
+      highlights: region?.highlights || [],
+      maxElevation: region?.maxElevation || 5400,
+      gradingList: region?.gradingList || ["Challenging", "Strenuous", "Moderate", "Easy"],
+      permits: region?.permits || ["Conservation Area Entry Permit", "TIMS Card"],
+      subDestinations,
+      allTreks: matchingTreks,
+      highGradeTreks,
+      moderateGradeTreks,
+      easyGradeTreks,
+    };
+  },
+
+  saveRegion(regionData, { persist = true } = {}) {
+    const list = this.getRegions();
+    const slug = regionData.slug || (regionData.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const item = {
+      id: regionData.id || regionData._id || slug,
+      slug,
+      name: regionData.name,
+      label: regionData.label || regionData.name,
+      tagline: regionData.tagline || "",
+      description: regionData.description || "",
+      image: regionData.image || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=80",
+      coordinates: regionData.coordinates || { lat: Number(regionData.lat || 28.0), lng: Number(regionData.lng || 85.0) },
+      bestSeason: Array.isArray(regionData.bestSeason) ? regionData.bestSeason : (regionData.bestSeason ? regionData.bestSeason.split(",").map(s => s.trim()) : ["Spring", "Autumn"]),
+      highlights: Array.isArray(regionData.highlights) ? regionData.highlights : (regionData.highlights ? regionData.highlights.split("\n").map(s => s.trim()).filter(Boolean) : []),
+      maxElevation: Number(regionData.maxElevation || 5400),
+      gradingList: Array.isArray(regionData.gradingList) ? regionData.gradingList : ["Challenging", "Strenuous", "Moderate", "Easy"],
+      permits: Array.isArray(regionData.permits) ? regionData.permits : [],
+    };
+
+    const index = list.findIndex((r) => r.slug === slug || (regionData.id && r.id === regionData.id));
+    if (index >= 0) {
+      list[index] = { ...list[index], ...item };
+    } else {
+      list.push(item);
+    }
+    setStored(REGIONS_STORAGE_KEY, list);
+
+    if (persist) {
+      fetch("/api/regions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+        credentials: "include",
+      }).catch(() => {});
+    }
+
+    return item;
+  },
+
+  deleteRegion(idOrSlug, { persist = true } = {}) {
+    const list = this.getRegions().filter(
+      (r) => r.id !== idOrSlug && r.slug !== idOrSlug && r._id !== idOrSlug
+    );
+    setStored(REGIONS_STORAGE_KEY, list);
+
+    if (persist) {
+      fetch(`/api/regions/${idOrSlug}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).catch(() => {});
+    }
   },
 };

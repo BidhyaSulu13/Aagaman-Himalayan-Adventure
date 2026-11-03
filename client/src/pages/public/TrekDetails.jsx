@@ -43,7 +43,6 @@ import { Page } from "../../components/common/Page.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { useFavorites } from "../../context/FavoritesContext.jsx";
 import { useDepartures, useTreks } from "../../hooks/useDataStore.js";
-import { dataStore } from "../../services/dataStore.js";
 import { api } from "../../services/api.js";
 import { NotFoundPage } from "./MiscPages.jsx";
 import "./TrekDetailsUpgrade.css";
@@ -54,15 +53,71 @@ export function TrekDetailPage() {
   const { slug } = useParams();
   const treks = useTreks();
   const allDepartures = useDepartures();
-  const trek = treks.find((t) => t.slug === slug);
+  const [remoteTrek, setRemoteTrek] = useState(null);
+  const [remoteDepartures, setRemoteDepartures] = useState(null);
+  const [trekReviews, setTrekReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
+  const cachedTrek = treks.find((t) => t.slug === slug);
+  const trek = remoteTrek
+    ? {
+        ...remoteTrek,
+        image: remoteTrek.image || remoteTrek.images?.[0] || "",
+        elevation: remoteTrek.maximumElevation || remoteTrek.elevation,
+        description: remoteTrek.shortDescription || remoteTrek.description || "",
+        introduction: remoteTrek.fullDescription || remoteTrek.introduction || "",
+        included: remoteTrek.included || remoteTrek.inclusions || [],
+        excluded: remoteTrek.excluded || remoteTrek.exclusions || [],
+      }
+    : cachedTrek;
 
   const { isSaved, toggleSaved } = useFavorites();
   const notify = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Track unique view for ranking algorithm (24h deduplicated server-side)
+  useEffect(() => {
+    if (trek?._id || trek?.id) {
+      api.rankings.trackView(trek._id || trek.id).catch(() => {});
+    }
+  }, [trek?._id, trek?.id]);
+
   // Gallery state
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setRemoteTrek(null);
+    setRemoteDepartures(null);
+    setTrekReviews([]);
+    setReviewsError("");
+    setActivePhotoIdx(0);
+    setReviewsLoading(true);
+    api.treks.getBySlug(slug)
+      .then((response) => {
+        if (!active) return;
+        if (response.success && response.trek) {
+          setRemoteTrek(response.trek);
+          setRemoteDepartures(
+            Array.isArray(response.departures)
+              ? response.departures.map((departure) => ({ ...departure, trekSlug: slug }))
+              : []
+          );
+          setTrekReviews(Array.isArray(response.reviews) ? response.reviews : []);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setTrekReviews([]);
+          setReviewsError("Traveler reviews could not be loaded. Please try again later.");
+        }
+      })
+      .finally(() => {
+        if (active) setReviewsLoading(false);
+      });
+    return () => { active = false; };
+  }, [slug]);
 
   // Itinerary accordion state
   const [openDays, setOpenDays] = useState({ 0: true, 1: true });
@@ -70,61 +125,76 @@ export function TrekDetailPage() {
   // Quick Inquiry Modal state
   const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
   const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquiryError, setInquiryError] = useState("");
   const [inquiryForm, setInquiryForm] = useState({
     name: "",
     email: "",
     phone: "",
     country: "United States",
     travelers: 2,
-    travelMonth: "October",
+    travelMonth: `October ${new Date().getFullYear()}`,
     message: "",
   });
+  const [reviewSort, setReviewSort] = useState("newest");
+  const [reviewLinkForm, setReviewLinkForm] = useState({ bookingReference: "", email: "" });
+  const [reviewLinkSubmitting, setReviewLinkSubmitting] = useState(false);
+  const [reviewLinkMessage, setReviewLinkMessage] = useState("");
+  const [reviewLinkError, setReviewLinkError] = useState("");
 
   if (!trek) return <NotFoundPage />;
 
   const saved = isSaved(trek.slug);
-  const departures = allDepartures.filter((d) => d.trekSlug === trek.slug);
+  const departures = (remoteDepartures || allDepartures.filter((d) => d.trekSlug === trek.slug))
+    .filter((departure) => new Date(departure.startDate) >= new Date());
 
-  // Standardize high-res gallery
-  const gallery =
-    trek.gallery && trek.gallery.length >= 3
-      ? trek.gallery
-      : [
-          {
-            url: trek.image,
-            alt: trek.imageAlt || trek.title,
-            caption: `${trek.title} — High Himalayan vista & panoramic crest`,
-          },
-          {
-            url: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1500&q=85",
-            alt: "Namche Bazaar Sherpa capital",
-            caption: "Namche Bazaar (3,440m) amphitheatre & Sherpa trading capital",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1579618218290-24a26f63a708?auto=format&fit=crop&w=1500&q=85",
-            alt: "Suspension bridge crossing mountain torrents",
-            caption: "Hillary Suspension Bridge strung high above the turquoise river",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1500&q=85",
-            alt: "Everest Base Camp & Khumbu Glacier",
-            caption: "Footsteps beneath the giants: glacial moraines & base camp flags",
-          },
-          {
-            url: "https://images.unsplash.com/photo-1486911278573-0599a03978cf?auto=format&fit=crop&w=1500&q=85",
-            alt: "High mountain monastery",
-            caption: "Tengboche Monastery blessing under the sacred shadow of Ama Dablam",
-          },
-        ];
+  const coverImage = trek.image || trek.images?.[0] || "";
+  const uploadedGallery = [
+    ...(Array.isArray(trek.gallery) ? trek.gallery : []),
+    ...(Array.isArray(trek.images) ? trek.images : []),
+  ]
+    .map((photo) => typeof photo === "string" ? { url: photo } : photo)
+    .filter((photo) => photo?.url)
+    .filter((photo, index, list) => list.findIndex((item) => item.url === photo.url) === index);
+  if (coverImage && !uploadedGallery.some((photo) => photo.url === coverImage)) {
+    uploadedGallery.unshift({ url: coverImage, alt: trek.imageAlt || trek.title });
+  }
+  const gallery = uploadedGallery.map((photo) => ({
+    ...photo,
+    alt: photo.alt || trek.title,
+    caption: photo.caption || photo.alt || trek.title,
+  }));
+  const trekInclusions = Array.isArray(trek.included) ? trek.included : [];
+  const trekExclusions = Array.isArray(trek.excluded) ? trek.excluded : [];
 
   // Group discounts tiers
-  const basePrice = trek.price || 1890;
+  const basePrice = Number(trek.price) || 0;
+  const groupCapacity = Math.max(Number(trek.groupCapacity) || 12, Number(trek.minGroupSize) || 1);
   const tiers = [
-    { pax: "1 PAX", price: Math.round(basePrice * 1.2) },
-    { pax: "2-4 PAX", price: Math.round(basePrice * 1.1) },
-    { pax: "5-9 PAX", price: Math.round(basePrice * 1.05) },
-    { pax: "10-18 PAX", price: basePrice },
-  ];
+    { min: 1, max: 1, multiplier: 1.2 },
+    { min: 2, max: 4, multiplier: 1.1 },
+    { min: 5, max: 9, multiplier: 1.05 },
+    { min: 10, max: groupCapacity, multiplier: 1 },
+  ]
+    .filter((tier) => tier.min <= groupCapacity)
+    .map((tier) => ({
+      pax: tier.min === Math.min(tier.max, groupCapacity)
+        ? `${tier.min} ${tier.min === 1 ? "traveler" : "travelers"}`
+        : `${tier.min}–${Math.min(tier.max, groupCapacity)} travelers`,
+      price: Math.round(basePrice * tier.multiplier),
+    }));
+  const tripInfoItems = [
+    ["Recommended seasons", (trek.recommendedSeason || trek.season || []).join?.(", ") || ""],
+    ["Required permits", (trek.requiredPermits || trek.permits || []).join?.(", ") || ""],
+    ["Maximum group size", trek.groupCapacity ? `${trek.groupCapacity} travelers` : ""],
+    ["Distance", trek.distance || ""],
+    ["Route", Array.isArray(trek.routeOverview) ? trek.routeOverview.join(" → ") : trek.routeOverview || ""],
+  ].filter(([, value]) => value);
+  const reviewAverage = trekReviews.length
+    ? trekReviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / trekReviews.length
+    : 0;
+  const sortedTrekReviews = [...trekReviews].sort((a, b) => reviewSort === "highest"
+    ? Number(b.rating) - Number(a.rating) || new Date(b.createdAt) - new Date(a.createdAt)
+    : new Date(b.createdAt) - new Date(a.createdAt));
 
   const scrollToSection = (id) => {
     setActiveTab(id);
@@ -166,34 +236,45 @@ export function TrekDetailPage() {
   const handleInquirySubmit = async (e) => {
     e.preventDefault();
     setInquirySubmitting(true);
-
-    const inquiryPayload = {
-      type: "inquiry",
-      trekSlug: trek.slug,
-      trekTitle: trek.title,
-      name: inquiryForm.name,
-      email: inquiryForm.email,
-      phone: inquiryForm.phone,
-      country: inquiryForm.country,
-      travelers: Number(inquiryForm.travelers),
-      startDate: `Target: ${inquiryForm.travelMonth} 2026`,
-      notes: inquiryForm.message,
-      totalAmount: basePrice * Number(inquiryForm.travelers),
-      bookingStatus: "Requested",
-      paymentStatus: "Inquiry Only",
-    };
-
+    setInquiryError("");
     try {
-      if (api.bookings && api.bookings.create) {
-        await api.bookings.create(inquiryPayload).catch(() => {});
-      }
-    } catch {}
+      await api.contactMessages.create({
+        category: "expedition_inquiry",
+        trek: trek._id,
+        trekSlug: trek.slug,
+        trekTitle: trek.title,
+        name: inquiryForm.name,
+        email: inquiryForm.email,
+        phone: inquiryForm.phone,
+        country: inquiryForm.country,
+        travelers: Number(inquiryForm.travelers),
+        travelMonth: inquiryForm.travelMonth,
+        message: inquiryForm.message,
+        topic: "Expedition inquiry",
+      });
+      notify("Your expedition inquiry has been sent to our team.");
+      setInquiryModalOpen(false);
+      setInquiryForm((form) => ({ ...form, message: "" }));
+    } catch (error) {
+      setInquiryError(error.message || "Your inquiry could not be sent. Please try again.");
+    } finally {
+      setInquirySubmitting(false);
+    }
+  };
 
-    dataStore.addBooking(inquiryPayload);
-    window.dispatchEvent(new Event("agaaman_data_changed"));
-    notify("Thank you! Your inquiry has been sent to our lead Sherpa guide team.");
-    setInquirySubmitting(false);
-    setInquiryModalOpen(false);
+  const handleReviewLinkRequest = async (event) => {
+    event.preventDefault();
+    setReviewLinkSubmitting(true);
+    setReviewLinkMessage("");
+    setReviewLinkError("");
+    try {
+      const result = await api.reviews.requestVerification({ ...reviewLinkForm, trekSlug: trek.slug });
+      setReviewLinkMessage(result.message);
+    } catch (error) {
+      setReviewLinkError(error.message || "We couldn't send a review link. Please try again.");
+    } finally {
+      setReviewLinkSubmitting(false);
+    }
   };
 
   return (
@@ -255,11 +336,7 @@ export function TrekDetailPage() {
               {trek.title}
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "13.5px", color: "#64748b" }}>
-              <span style={{ color: "#10b981", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                <ShieldCheck size={16} /> 100% Certified Local Sherpa Guidance
-              </span>
-              <span>·</span>
-              <span>Zero Rescue Record</span>
+              <span>{trek.difficulty || "Trek"} · {trek.duration} days</span>
               <span>·</span>
               <span style={{ color: "#ea580c", fontWeight: 600 }}>{trek.region} Region, Nepal</span>
             </div>
@@ -269,7 +346,8 @@ export function TrekDetailPage() {
               1. INTERACTIVE MAIN IMAGE GALLERY
              ════════════════════════════════════════ */}
           <div className="trek-hero-gallery-wrap" id="gallery">
-            <div className="trek-hero-gallery-grid">
+            {gallery.length > 0 ? (
+            <div className={`trek-hero-gallery-grid${gallery.length === 1 ? " is-single" : ""}`}>
               {/* Main Showcase Image */}
               <div
                 className="gallery-main-showcase"
@@ -325,102 +403,54 @@ export function TrekDetailPage() {
               </div>
 
               {/* Secondary Thumbnails Column */}
-              <div className="gallery-thumb-column">
-                {gallery.map((photo, idx) => (
-                  <div
-                    key={idx}
-                    className={`gallery-thumb-item${activePhotoIdx === idx ? " is-active" : ""}`}
-                    onClick={() => setActivePhotoIdx(idx)}
-                    title={photo.caption}
-                  >
-                    <img src={photo.url} alt={photo.alt} />
-                  </div>
-                ))}
-              </div>
+              {gallery.length > 1 && (
+                <div className="gallery-thumb-column">
+                  {gallery.map((photo, idx) => (
+                    <button
+                      type="button"
+                      key={idx}
+                      className={`gallery-thumb-item${activePhotoIdx === idx ? " is-active" : ""}`}
+                      onClick={() => setActivePhotoIdx(idx)}
+                      title={photo.caption}
+                    >
+                      <img src={photo.url} alt={photo.alt} />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+            ) : (
+              <div className="gallery-empty-state">Trek photos will be added by our team soon.</div>
+            )}
           </div>
 
-          {/* 9-Box Specs Grid */}
           <div className="specs-grid-9" id="overview">
-            <div className="spec-box">
-              <MapPin size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Country/Region</span>
-                <strong className="spec-val">Nepal / {trek.region}</strong>
+            {[
+              { label: "Country / Region", value: [trek.location, trek.region].filter(Boolean).join(" · ") || "Nepal", icon: MapPin },
+              { label: "Duration", value: trek.duration ? `${trek.duration} days` : "", icon: Calendar },
+              { label: "Maximum altitude", value: trek.elevation ? `${Number(trek.elevation).toLocaleString()} m` : "", icon: Mountain },
+              { label: "Difficulty", value: trek.difficulty, icon: Footprints },
+              { label: "Minimum group", value: trek.minGroupSize ? `${trek.minGroupSize} ${trek.minGroupSize === 1 ? "traveler" : "travelers"}` : "", icon: Users },
+              { label: "Transportation", value: trek.transportation, icon: Bus },
+              { label: "Accommodation", value: trek.accommodation, icon: BedDouble },
+              { label: "Meals", value: trek.meals, icon: Utensils },
+              { label: "Trip type", value: trek.tripType, icon: Compass },
+            ].filter((item) => item.value).map(({ label, value, icon: Icon }) => (
+              <div className="spec-box" key={label}>
+                <Icon size={22} className="spec-icon" />
+                <div className="spec-text">
+                  <span className="spec-label">{label}</span>
+                  <strong className="spec-val">{value}</strong>
+                </div>
               </div>
-            </div>
-
-            <div className="spec-box">
-              <Calendar size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Duration</span>
-                <strong className="spec-val">{trek.duration} Days</strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <Mountain size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Max Altitude</span>
-                <strong className="spec-val">
-                  {trek.elevation}m / {trek.elevationFt || Math.round(trek.elevation * 3.28084)}ft
-                </strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <Footprints size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Difficulty</span>
-                <strong className="spec-val">{trek.difficulty}</strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <Users size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Min. Group Size</span>
-                <strong className="spec-val">1 PAX</strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <Bus size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Transportation</span>
-                <strong className="spec-val">Private Vehicle + Flight</strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <BedDouble size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Accommodation</span>
-                <strong className="spec-val">Heritage Hotel + Teahouse Lodges</strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <Utensils size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Meals</span>
-                <strong className="spec-val">All Meals (B + L + D)</strong>
-              </div>
-            </div>
-
-            <div className="spec-box">
-              <Compass size={22} className="spec-icon" />
-              <div className="spec-text">
-                <span className="spec-label">Trip Type</span>
-                <strong className="spec-val">Trekking & Exploration</strong>
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Description & Narrative */}
+          {(trek.description || trek.introduction) && (
           <div className="detail-narrative-box">
-            <p className="narrative-p">{trek.description}</p>
-            <p className="narrative-intro">{trek.introduction}</p>
+            {trek.description && <p className="narrative-p">{trek.description}</p>}
+            {trek.introduction && <p className="narrative-intro">{trek.introduction}</p>}
 
             {trek.sherpaTip && (
               <div className="sherpa-note-banner">
@@ -430,6 +460,7 @@ export function TrekDetailPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* ════════════════════════════════════════
               2. PROFESSIONAL ITINERARY ACCORDION
@@ -469,7 +500,7 @@ export function TrekDetailPage() {
             </div>
 
             <div className="itinerary-accordion-list">
-              {trek.itinerary?.map((dayItem, idx) => {
+              {Array.isArray(trek.itinerary) && trek.itinerary.length > 0 ? trek.itinerary.map((dayItem, idx) => {
                 const isObj = !Array.isArray(dayItem);
                 const dayNum = isObj ? dayItem.day : dayItem[0];
                 const title = isObj ? dayItem.title : dayItem[1];
@@ -542,7 +573,7 @@ export function TrekDetailPage() {
                     )}
                   </div>
                 );
-              })}
+              }) : <p className="trek-content-empty">The day-by-day itinerary is being prepared. Contact us for the current route plan.</p>}
             </div>
           </div>
 
@@ -550,7 +581,7 @@ export function TrekDetailPage() {
           <div className="fixed-departures-box" id="fixed-departures">
             <h3 className="section-subheading">Group Joining Dates & Fixed Departures</h3>
             <p className="departures-sub">
-              Join an existing small group with guaranteed departures and save up to 20% with our group discount!
+              Choose a scheduled departure below, or ask us about dates that work for your group.
             </p>
 
             {departures.length > 0 ? (
@@ -568,23 +599,23 @@ export function TrekDetailPage() {
                   </thead>
                   <tbody>
                     {departures.map((dep) => (
-                      <tr key={dep.id}>
-                        <td><strong>{dep.startDate}</strong></td>
-                        <td>{dep.endDate}</td>
+                      <tr key={dep._id || dep.id}>
+                        <td><strong>{new Date(dep.startDate).toLocaleDateString()}</strong></td>
+                        <td>{dep.endDate ? new Date(dep.endDate).toLocaleDateString() : "—"}</td>
                         <td>
-                          <span className={`status-pill status-${dep.status.toLowerCase().replace(/\s+/g, "-")}`}>
-                            {dep.status}
+                          <span className={`status-pill status-${(dep.status || "available").toLowerCase().replace(/\s+/g, "-")}`}>
+                            {dep.status || "Available"}
                           </span>
                         </td>
                         <td>
                           <div className="table-price">
-                            <span className="orig-price">${dep.originalPrice || Math.round(dep.price * 1.15)}</span>
-                            <strong>${dep.price}</strong>
+                            {dep.originalPrice && <span className="orig-price">${dep.originalPrice}</span>}
+                            <strong>${Number(dep.price).toLocaleString()}</strong>
                           </div>
                         </td>
-                        <td>{dep.availableSeats || 6} / {dep.totalSeats || 12} seats</td>
+                        <td>{dep.availableSeats ?? Math.max(0, (dep.capacity || 0) - (dep.bookedCount || 0))} / {dep.capacity || dep.totalSeats || 0} seats</td>
                         <td>
-                          <Link to={`/booking/${trek.slug}?date=${dep.startDate}`} className="table-join-btn">
+                          <Link to={`/booking/${trek.slug}?date=${new Date(dep.startDate).toISOString().slice(0, 10)}`} className="table-join-btn">
                             Book This Date
                           </Link>
                         </td>
@@ -596,7 +627,7 @@ export function TrekDetailPage() {
             ) : (
               <div className="no-departures-note">
                 <Calendar size={22} />
-                <p>Guaranteed 2026 departure dates are available upon request. Choose your preferred start date!</p>
+                <p>No scheduled group departures are listed at the moment. Contact us to arrange a date.</p>
                 <Link to={`/booking/${trek.slug}`} className="button button-orange button-small">
                   Request Custom Dates
                 </Link>
@@ -610,7 +641,7 @@ export function TrekDetailPage() {
           <div className="inclusions-modern-wrap" id="included-excluded">
             <h3 className="section-subheading">What is Included & Excluded in the Cost</h3>
             <p style={{ color: "#64748b", fontSize: "14px", margin: "4px 0 16px 0" }}>
-              Transparent pricing with no hidden trail costs. Detailed expenses breakdown guaranteed.
+              Review what is covered by this trek before you book.
             </p>
 
             <div className="inclusions-modern-grid">
@@ -623,17 +654,7 @@ export function TrekDetailPage() {
                   <h4>What is Included</h4>
                 </div>
                 <ul className="inc-card-list">
-                  {(trek.included || [
-                    "Certified licensed English-speaking Sherpa Mountain Guide",
-                    "Dedicated support porters (1 porter for 2 trekkers, carrying up to 20kg)",
-                    "All national park permits (Sagarmatha/ACAP) and TIMS cards",
-                    "Domestic round-trip mountain flights with 15kg baggage allowance",
-                    "All teahouse lodge twin-share accommodations during the trek",
-                    "Kathmandu heritage hotel accommodation with organic breakfast",
-                    "Three hot meals daily on trail (Breakfast, Lunch, Dinner) + fresh fruit",
-                    "Pulse oximeter daily blood oxygen checks and altitude monitoring",
-                    "Farewell celebration dinner in Kathmandu with folk music",
-                  ]).map((item, idx) => (
+                  {trekInclusions.map((item, idx) => (
                     <li key={idx} className="inc-card-item">
                       <span className="inc-bullet-icon check">
                         <Check size={12} />
@@ -641,6 +662,7 @@ export function TrekDetailPage() {
                       <span>{item}</span>
                     </li>
                   ))}
+                  {trekInclusions.length === 0 && <li className="inc-card-item">Details will be confirmed with your trip plan.</li>}
                 </ul>
               </div>
 
@@ -653,15 +675,7 @@ export function TrekDetailPage() {
                   <h4>What is Excluded</h4>
                 </div>
                 <ul className="inc-card-list">
-                  {(trek.excluded || [
-                    "Nepal tourist entry visa ($50 for 30 days, obtained upon arrival)",
-                    "International flights to and from Kathmandu (Tribhuvan Airport)",
-                    "Mandatory high-altitude emergency travel and helicopter evacuation insurance",
-                    "Personal gear (down jacket, sleeping bag — available for rent at $2/day)",
-                    "Trail incidental expenses (hot bucket showers, charging, Wi-Fi cards)",
-                    "Bottled soft drinks, craft beers, and specialty espresso coffees on trail",
-                    "Tips for local guide and porters (customary ~$150–$200 total per trekker)",
-                  ]).map((item, idx) => (
+                  {trekExclusions.map((item, idx) => (
                     <li key={idx} className="inc-card-item">
                       <span className="inc-bullet-icon cross">
                         <X size={12} />
@@ -669,6 +683,7 @@ export function TrekDetailPage() {
                       <span>{item}</span>
                     </li>
                   ))}
+                  {trekExclusions.length === 0 && <li className="inc-card-item">No exclusions have been listed yet. Please ask us before booking.</li>}
                 </ul>
               </div>
             </div>
@@ -681,6 +696,113 @@ export function TrekDetailPage() {
               <HimalayanMap initialDestinationSlug={trek.region.toLowerCase()} />
             </Suspense>
           </div>
+
+          <section className="trek-content-section" id="trip-info">
+            <div className="trek-content-heading">
+              <p className="eyebrow">Practical details</p>
+              <h2>Trip information</h2>
+            </div>
+            {tripInfoItems.length ? (
+              <dl className="trip-info-grid">
+                {tripInfoItems.map(([label, value]) => (
+                  <div className="trip-info-item" key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="trek-content-empty">Trip details are being updated. Contact us if you need specific information.</p>
+            )}
+            {Array.isArray(trek.highlights) && trek.highlights.length > 0 && (
+              <div className="trip-highlights">
+                <h3>Highlights</h3>
+                <ul>{trek.highlights.map((highlight, index) => <li key={`${highlight}-${index}`}>{highlight}</li>)}</ul>
+              </div>
+            )}
+          </section>
+
+          <section className="trek-content-section trek-reviews-section" id="reviews">
+            <div className="trek-content-heading trek-reviews-heading">
+              <div>
+                <p className="eyebrow">Approved traveler feedback</p>
+                <h2>Traveler reviews</h2>
+              </div>
+              {trekReviews.length > 0 && (
+                <div className="trek-review-average" aria-label={`${reviewAverage.toFixed(1)} out of 5 based on ${trekReviews.length} reviews`}>
+                  <Star size={18} fill="currentColor" />
+                  <strong>{reviewAverage.toFixed(1)}</strong>
+                  <span>{trekReviews.length} approved {trekReviews.length === 1 ? "review" : "reviews"}</span>
+                </div>
+              )}
+            </div>
+            <label className="trek-review-sort">
+              Sort reviews
+              <select value={reviewSort} onChange={(event) => setReviewSort(event.target.value)}>
+                <option value="newest">Newest first</option>
+                <option value="highest">Highest rating</option>
+              </select>
+            </label>
+            {reviewsLoading ? (
+              <p className="trek-content-empty" role="status">Loading traveler reviews…</p>
+            ) : reviewsError ? (
+              <p className="trek-content-empty" role="alert">{reviewsError}</p>
+            ) : sortedTrekReviews.length > 0 ? (
+              <div className="trek-reviews-grid">
+                {sortedTrekReviews.map((review) => (
+                  <article className="trek-review-card" key={review._id}>
+                    <div className="trek-review-card-stars" aria-label={`${review.rating} out of 5 stars`}>
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Star key={index} size={16} fill={index < review.rating ? "currentColor" : "none"} />
+                      ))}
+                    </div>
+                    {review.title && <h3>{review.title}</h3>}
+                    <p>{review.comment}</p>
+                    {review.photos?.length > 0 && (
+                      <div className="trek-review-photos">
+                        {review.photos.map((photo) => (
+                          <a key={photo} href={photo} target="_blank" rel="noreferrer">
+                            <img src={photo} alt={`Photo added by ${review.name || review.user?.name || "a traveler"}`} loading="lazy" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    <div className="trek-review-byline">
+                      <strong>{review.name || review.user?.name || "Traveler"}</strong>
+                      <span>{review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}</span>
+                    </div>
+                    <span className={`trek-review-verification${review.verificationStatus === "Verified Trekker" ? " is-verified" : ""}`}>
+                      {review.verificationStatus === "Verified Trekker"
+                        ? <><ShieldCheck size={14} /> Verified trekker</>
+                        : "Unverified traveler review"}
+                    </span>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="trek-content-empty trek-no-reviews">
+                <p>No approved reviews yet. Reviews are shared after travelers complete this trek.</p>
+                <Link to={`/booking/${trek.slug}`} className="text-link">Plan this trek <ArrowRight size={15} /></Link>
+              </div>
+            )}
+            <div className="public-review-workflows">
+              <form className="public-review-form verified-review-form" onSubmit={handleReviewLinkRequest}>
+                <h3>Completed this trek with us?</h3>
+                <p>A guaranteed departure means the trip is scheduled to run; reviews open after your trek is completed. No traveler account is needed: request a secure link with your booking reference and booking email, or <Link to="/review/request">request a review link here</Link>.</p>
+                <label>Booking reference
+                  <input value={reviewLinkForm.bookingReference} onChange={(event) => setReviewLinkForm({ ...reviewLinkForm, bookingReference: event.target.value })} required />
+                </label>
+                <label>Booking email
+                  <input type="email" value={reviewLinkForm.email} onChange={(event) => setReviewLinkForm({ ...reviewLinkForm, email: event.target.value })} required />
+                </label>
+                {reviewLinkError && <p className="public-form-error" role="alert">{reviewLinkError}</p>}
+                {reviewLinkMessage && <p className="public-form-success" role="status">{reviewLinkMessage}</p>}
+                <button className="button button-dark" type="submit" disabled={reviewLinkSubmitting}>
+                  {reviewLinkSubmitting ? "Requesting link…" : "Email me a verified review link"}
+                </button>
+              </form>
+            </div>
+          </section>
         </main>
 
         {/* Right Sticky Sidebar */}
@@ -697,29 +819,20 @@ export function TrekDetailPage() {
             </div>
 
             {/* Discount Announcement Badge */}
-            <div className="group-discount-pill">
-              <span className="pulse-orange-dot" />
-              <span>GROUP DISCOUNT APPLIED (SAVE UP TO 20%)</span>
-            </div>
-
-            {/* Tiered Discount Table */}
-            <div className="sidebar-group-table-wrap">
-              <table className="sidebar-group-table">
-                <thead>
-                  <tr>
-                    <th>Group Size</th>
-                    <th>Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tiers.map((t, idx) => (
-                    <tr key={idx}>
-                      <td>{t.pax}</td>
-                      <td><strong>${t.price}</strong></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="sidebar-group-pricing">
+              <div className="sidebar-group-heading">
+                <Users size={17} />
+                <div><strong>Price by group size</strong><span>Per person · USD</span></div>
+              </div>
+              <div className="sidebar-group-tiers">
+                {tiers.map((tier) => (
+                  <div className="sidebar-group-tier" key={tier.pax}>
+                    <span>{tier.pax}</span>
+                    <strong>${tier.price.toLocaleString()}</strong>
+                  </div>
+                ))}
+              </div>
+              <p className="sidebar-group-note">Final total is confirmed when you choose dates and group size.</p>
             </div>
 
             {/* Action Buttons */}
@@ -760,7 +873,7 @@ export function TrekDetailPage() {
             {/* Guarantee note */}
             <div className="sidebar-v2-guarantee">
               <ShieldCheck size={16} />
-              <span>100% Guaranteed Departures · Licensed Sherpa Leaders</span>
+              <span>{departures.length > 0 ? `${departures.length} upcoming fixed departures listed` : "Custom departure dates are available on request."}</span>
             </div>
           </div>
         </aside>
@@ -894,8 +1007,8 @@ export function TrekDetailPage() {
                     onChange={(e) => setInquiryForm({ ...inquiryForm, travelMonth: e.target.value })}
                   >
                     {["March", "April", "May", "September", "October", "November", "December"].map((m) => (
-                      <option key={m} value={m}>
-                        {m} 2026
+                      <option key={m} value={`${m} ${new Date().getFullYear()}`}>
+                        {m} {new Date().getFullYear()}
                       </option>
                     ))}
                   </select>
@@ -913,6 +1026,7 @@ export function TrekDetailPage() {
                 />
               </div>
 
+              {inquiryError && <p className="public-form-error" role="alert">{inquiryError}</p>}
               <button
                 type="submit"
                 className="inquiry-submit-btn"

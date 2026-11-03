@@ -1,4 +1,4 @@
-import { Mountain } from "lucide-react";
+import { ArrowUpRight, Mountain } from "lucide-react";
 import { Link } from "react-router-dom";
 import { treks } from "../../data/index.js";
 

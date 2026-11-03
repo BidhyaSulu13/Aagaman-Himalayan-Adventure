@@ -14,7 +14,7 @@ export function SavedPage() {
         <p>Saved on this device for now. Your list will stay in this browser, but isn't connected to an account.</p>
       </section>
       <section className="section-wrap saved-content">
-        {saved.length ? <div className="trek-grid">{saved.map((trek) => <TrekCard trek={trek} key={trek.slug} />)}</div> : <EmptyState title="Nothing saved just yet" copy="When a trek catches your eye, tap the heart and it will be waiting here." action="Explore the treks" to="/treks" />}
+        {saved.length ? <div className="trek-grid">{saved.map((trek) => <TrekCard trek={trek} key={trek.slug} />)}</div> : <EmptyState title="Your favourites list is empty" copy="Save a trek you love and it will be waiting here. Visit our Nepal treks to find your next trail." action="Visit Nepal Treks" to="/treks" />}
       </section>
     </Page>
   );

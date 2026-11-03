@@ -82,7 +82,7 @@ Himalayan-adventure/
 └── README.md
 ```
 
-The frontend screens, shared components, data, and route table are now separated by feature. `pages/Pages.jsx` is a small compatibility export file. Admin screens and reusable auth/booking components are not present because those features have not been implemented; the server folders are scaffolding, and the current API only has its Express health endpoint.
+The application includes public trek, destination, region, journal, and contact pages; traveler authentication and booking flows; an admin console; and an Express/MongoDB API. Demo content remains available in the frontend when the API has no matching records.
 
 ## Requirements
 
@@ -101,34 +101,40 @@ Set-Location E:\Himalayan-adventure\server
 npm install
 ```
 
-For the API, copy the root `.env.example` to `server/.env` and set values as the corresponding features are implemented. Never commit `.env` files or real credentials.
+For the API, copy the root `.env.example` to `server/.env` and configure `MONGODB_URI`, `JWT_SECRET`, and `COOKIE_SECRET`. Use independently generated random secrets of at least 32 characters. Never commit `.env` files or real credentials.
 
-Start the applications in separate terminals:
+To create an administrator without clearing any application data, set `ADMIN_EMAIL` and a unique `ADMIN_PASSWORD` of at least 16 characters in `server/.env`, then run `npm run admin:create` from `server/`. If that admin already exists, add `-- --reset-password` to update its password. This command will not promote a traveler account or modify an existing account unless it is already an admin and the reset flag is provided. Do not reuse a password that has been shared in chat or committed to source.
+
+SMTP settings are optional for development; without them, email is simulated in the server log.
+
+Start the API and frontend together from the client directory. The API must be
+configured and able to start before Vite launches:
 
 ```powershell
 Set-Location E:\Himalayan-adventure\client
 npm run dev
 ```
 
+This command waits for the API health check before starting Vite. To run only
+the frontend (for example, when the API is already running separately), use:
+
 ```powershell
-# Project root
-cd server
-npm run dev
+npm run dev:client
 ```
 
-## Frontend demonstration
+## Application behavior
 
-The current frontend includes a responsive homepage, trek browsing and filters, illustrative trek/destination detail pages, an OpenStreetMap region explorer, a deterministic trek finder, journal pages, saved treks in local browser storage, and demo-only contact, auth, and trip-request screens.
-
-The trek, price, article, and destination content is illustrative. No live departures, ratings, customer reviews, account authentication, bookings, email delivery, or database/API integration are connected yet. Forms explicitly identify their demo behavior; submitting them does not send or save personal data. Destination map markers are approximate and are not for navigation.
+Public catalog and content routes read from the API, with illustrative frontend content as a fallback. Authentication and administrator operations require the API and MongoDB. Configure SMTP before relying on real email delivery. Seeded trek and destination material is illustrative; verify all route, price, permit, safety, and marketing claims before public use.
 
 External images are loaded from Unsplash image URLs and map tiles from OpenStreetMap. Confirm image licensing and any required attribution before public use.
 
-## What remains
+## Database seeding
 
-The Express health endpoint runs, but MongoDB, authentication, booking management, admin tools, and email integrations remain future phases. No deployment has been configured.
+The seed script clears existing application collections. It refuses to run unless explicitly confirmed with `npm run seed -- --reset` from `server/`, and requires `SEED_ADMIN_PASSWORD` and `SEED_TRAVELER_PASSWORD` in `server/.env` (each at least 12 characters). Do not run it against a database containing data you need to keep.
 
-## Development phases
+There is no automated test suite configured yet. Validate changes with `npm run build` in `client/` and syntax checks or API smoke tests in `server/`. No deployment has been configured.
+
+## Development roadmap
 
 1. Workspace audit, architecture, and project foundation.
 2. Responsive design system and public-facing frontend.
@@ -138,5 +144,4 @@ The Express health endpoint runs, but MongoDB, authentication, booking managemen
 6. Secure authentication and traveler dashboard.
 7. Booking requests and configurable email notifications.
 8. Protected administration.
-9. Testing, accessibility, performance, and deployment preparation.
-10. Integration, documentation, and delivery review.
+9. Automated testing, accessibility, performance, and deployment preparation.

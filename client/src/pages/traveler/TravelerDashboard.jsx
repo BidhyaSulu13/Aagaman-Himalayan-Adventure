@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
@@ -29,19 +29,33 @@ import { useToast } from "../../context/ToastContext.jsx";
 import { api } from "../../services/api.js";
 
 export function TravelerDashboard() {
-  const { user, logout, updateProfile, changePassword } = useAuth();
+  const { user, loading: authLoading, logout, updateProfile, changePassword } = useAuth();
   const notify = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState("overview"); // overview | bookings | saved | requests | profile | settings
+  const guestBooking = location.state?.guestBooking || null;
+  const requestedTab = searchParams.get("tab");
+  const requestedBooking = searchParams.get("booking");
+  const [activeTab, setActiveTab] = useState(
+    ["overview", "bookings", "saved", "requests", "profile", "settings"].includes(requestedTab)
+      ? requestedTab
+      : "overview"
+  );
   const [bookings, setBookings] = useState([]);
   const [savedTreks, setSavedTreks] = useState([]);
   const [tripRequests, setTripRequests] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Cancellation modal state
   const [cancellingBookingId, setCancellingBookingId] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [reviewingBookingId, setReviewingBookingId] = useState(null);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, title: "", comment: "" });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   // Profile Form state
   const [profileForm, setProfileForm] = useState({
@@ -61,8 +75,10 @@ export function TravelerDashboard() {
   });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
-      navigate("/login");
+      if (!guestBooking) navigate("/login");
+      else setLoadingData(false);
       return;
     }
 
@@ -76,6 +92,8 @@ export function TravelerDashboard() {
     });
 
     // Fetch traveler's bookings, saved treks, and trip requests
+    setLoadingData(true);
+    setDashboardError("");
     Promise.allSettled([
       api.bookings.getMy(),
       api.favorites.get(),
@@ -84,6 +102,12 @@ export function TravelerDashboard() {
       .then(([bookingsRes, favsRes, requestsRes]) => {
         if (bookingsRes.status === "fulfilled" && bookingsRes.value?.success) {
           setBookings(bookingsRes.value.bookings || []);
+        } else {
+          setDashboardError(
+            bookingsRes.status === "rejected"
+              ? bookingsRes.reason?.message || "Your bookings could not be loaded."
+              : "The booking service returned an invalid response."
+          );
         }
         if (favsRes.status === "fulfilled" && favsRes.value?.success) {
           setSavedTreks(favsRes.value.treks || []);
@@ -95,7 +119,7 @@ export function TravelerDashboard() {
       .finally(() => {
         setLoadingData(false);
       });
-  }, [user, navigate]);
+  }, [user, authLoading, navigate, refreshKey, guestBooking]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -153,7 +177,72 @@ export function TravelerDashboard() {
     }
   };
 
-  if (!user) return null;
+  const handleReviewSubmit = async (e, booking) => {
+    e.preventDefault();
+    setReviewSubmitting(true);
+    try {
+      const response = await api.reviews.create({
+        bookingId: booking._id,
+        ...reviewForm,
+      });
+      setBookings((previous) =>
+        previous.map((item) =>
+          item._id === booking._id ? { ...item, review: response.review } : item
+        )
+      );
+      setReviewingBookingId(null);
+      setReviewForm({ rating: 5, title: "", comment: "" });
+      notify(response.message || "Review submitted for admin approval.");
+    } catch (err) {
+      notify(err.message || "Unable to submit your review.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  if (authLoading || !user) return null;
+
+  const dashboardBooking = requestedBooking
+    ? bookings.find((booking) => booking.bookingReference === requestedBooking)
+    : null;
+
+  useEffect(() => {
+    if (!loadingData && dashboardBooking) {
+      document.getElementById(`booking-${dashboardBooking.bookingReference}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [loadingData, dashboardBooking]);
+
+  if (!user && guestBooking) {
+    return (
+      <Page className="traveler-dashboard-page">
+        <section className="guest-booking-dashboard">
+          <div className="guest-booking-dashboard-icon"><CheckCircle2 size={26} /></div>
+          <p className="welcome-tag">Guest booking</p>
+          <h1>Your booking is in the dashboard</h1>
+          <p className="guest-booking-intro">
+            This reservation was made without an account. Keep the booking reference below for updates from our expedition team.
+          </p>
+          <div className="guest-booking-reference">
+            <span>Booking reference</span>
+            <strong>{guestBooking.bookingReference}</strong>
+          </div>
+          <dl className="guest-booking-details">
+            <div><dt>Trek</dt><dd>{guestBooking.trekTitle}</dd></div>
+            <div><dt>Departure</dt><dd>{guestBooking.startDate ? new Date(guestBooking.startDate).toLocaleDateString() : "Flexible"}</dd></div>
+            <div><dt>Travelers</dt><dd>{guestBooking.numberOfTravelers}</dd></div>
+            <div><dt>Booking status</dt><dd>{guestBooking.bookingStatus}</dd></div>
+            <div><dt>Payment status</dt><dd>{guestBooking.paymentStatus}</dd></div>
+            <div><dt>Total</dt><dd>{guestBooking.currency} {Number(guestBooking.totalAmount).toLocaleString()}</dd></div>
+          </dl>
+          <div className="guest-booking-dashboard-actions">
+            {guestBooking.trekSlug && <Link className="button button-dark" to={`/treks/${guestBooking.trekSlug}`}>View trek details</Link>}
+            <Link className="button button-orange" to="/treks">Explore more treks</Link>
+          </div>
+        </section>
+      </Page>
+    );
+  }
 
   return (
     <Page className="traveler-dashboard-page">
@@ -161,7 +250,13 @@ export function TravelerDashboard() {
         {/* Top Welcome Bar */}
         <div className="dashboard-welcome-banner">
           <div className="welcome-avatar-wrap">
-            <img src={user.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"} alt={user.name} />
+            {user.avatar ? (
+              <img src={user.avatar} alt={user.name} />
+            ) : (
+              <span className="welcome-avatar-initials" aria-hidden="true">
+                {(user.name || "Traveler").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+              </span>
+            )}
           </div>
           <div className="welcome-text-wrap">
             <span className="welcome-tag">Traveler Portal</span>
@@ -246,6 +341,39 @@ export function TravelerDashboard() {
 
           {/* Main Content Pane */}
           <main className="dashboard-content-card">
+            {requestedBooking && !loadingData && (
+              <div className={`dashboard-booking-focus${dashboardBooking ? " is-found" : ""}`} role={dashboardBooking ? "status" : "alert"}>
+                {dashboardBooking ? (
+                  <>
+                    <CheckCircle2 size={20} />
+                    <span>
+                      Booking <strong>{dashboardBooking.bookingReference}</strong> is shown below.
+                      Current status: <strong>{dashboardBooking.bookingStatus}</strong>.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={20} />
+                    <span>
+                      Booking {requestedBooking} is not available in this account. Sign in with the email used for the booking or contact our team for help.
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+            {loadingData && (
+              <div className="dashboard-data-status" role="status">
+                <span className="dashboard-loading-spinner" />
+                Loading your bookings and saved treks…
+              </div>
+            )}
+            {dashboardError && !loadingData && (
+              <div className="dashboard-load-error" role="alert">
+                <AlertCircle size={19} />
+                <span>{dashboardError} Please retry in a moment.</span>
+                <button type="button" onClick={() => setRefreshKey((key) => key + 1)}>Retry</button>
+              </div>
+            )}
             {/* 1. OVERVIEW TAB */}
             {activeTab === "overview" && (
               <div className="dash-tab-pane">
@@ -272,7 +400,11 @@ export function TravelerDashboard() {
 
                 {/* Recent Bookings in Overview */}
                 <h3 className="dash-subheading">Active Trek Reservations</h3>
-                {bookings.length === 0 ? (
+                {loadingData ? (
+                  <div className="dashboard-inline-loading">Loading your latest bookings…</div>
+                ) : dashboardError ? (
+                  <div className="dashboard-inline-error">{dashboardError}</div>
+                ) : bookings.length === 0 ? (
                   <div className="dash-empty-state">
                     <Mountain size={36} />
                     <h4>No active trek bookings yet</h4>
@@ -284,7 +416,7 @@ export function TravelerDashboard() {
                 ) : (
                   <div className="dash-bookings-list">
                     {bookings.slice(0, 3).map((b) => (
-                      <div key={b._id || b.bookingReference} className="dash-booking-card">
+                      <div id={`booking-${b.bookingReference}`} key={b._id || b.bookingReference} className={`dash-booking-card${b.bookingReference === requestedBooking ? " is-highlighted" : ""}`}>
                         <div className="booking-card-header">
                           <div>
                             <span className="booking-ref-badge">{b.bookingReference}</span>
@@ -319,7 +451,11 @@ export function TravelerDashboard() {
                   </Link>
                 </div>
 
-                {bookings.length === 0 ? (
+                {loadingData ? (
+                  <div className="dashboard-inline-loading">Loading your latest bookings…</div>
+                ) : dashboardError ? (
+                  <div className="dashboard-inline-error">{dashboardError}</div>
+                ) : bookings.length === 0 ? (
                   <div className="dash-empty-state">
                     <Calendar size={36} />
                     <h4>No bookings found</h4>
@@ -329,7 +465,7 @@ export function TravelerDashboard() {
                 ) : (
                   <div className="dash-bookings-list">
                     {bookings.map((b) => (
-                      <div key={b._id || b.bookingReference} className="dash-booking-card">
+                      <div id={`booking-${b.bookingReference}`} key={b._id || b.bookingReference} className={`dash-booking-card${b.bookingReference === requestedBooking ? " is-highlighted" : ""}`}>
                         <div className="booking-card-header">
                           <div>
                             <span className="booking-ref-badge">{b.bookingReference}</span>
@@ -353,6 +489,77 @@ export function TravelerDashboard() {
 
                         {b.notes && (
                           <p className="booking-notes-preview"><strong>Notes:</strong> {b.notes}</p>
+                        )}
+
+                        {b.bookingStatus === "Completed" && (
+                          <div className="booking-review-area">
+                            {b.review ? (
+                              <p className="booking-review-status">
+                                <Star size={15} fill="currentColor" />
+                                Review submitted — {b.review.moderationStatus === "approved"
+                                  ? "published"
+                                  : b.review.moderationStatus === "rejected"
+                                    ? "not approved"
+                                    : "awaiting admin approval"}
+                              </p>
+                            ) : reviewingBookingId === b._id ? (
+                              <form className="booking-review-form" onSubmit={(e) => handleReviewSubmit(e, b)}>
+                                <label>
+                                  Star rating
+                                  <span className="review-star-picker" role="group" aria-label="Choose a star rating">
+                                    {[1, 2, 3, 4, 5].map((rating) => (
+                                      <button
+                                        key={rating}
+                                        type="button"
+                                        aria-label={`${rating} star${rating === 1 ? "" : "s"}`}
+                                        aria-pressed={reviewForm.rating === rating}
+                                        onClick={() => setReviewForm({ ...reviewForm, rating })}
+                                      >
+                                        <Star size={21} fill={rating <= reviewForm.rating ? "currentColor" : "none"} />
+                                      </button>
+                                    ))}
+                                  </span>
+                                </label>
+                                <label>
+                                  Review title
+                                  <input
+                                    value={reviewForm.title}
+                                    maxLength={120}
+                                    onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  Your experience
+                                  <textarea
+                                    value={reviewForm.comment}
+                                    maxLength={2000}
+                                    onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
+                                    required
+                                  />
+                                </label>
+                                <div className="booking-review-actions">
+                                  <button type="submit" className="view-trek-btn" disabled={reviewSubmitting}>
+                                    {reviewSubmitting ? "Submitting…" : "Submit for approval"}
+                                  </button>
+                                  <button type="button" className="cancel-booking-btn" onClick={() => setReviewingBookingId(null)}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              </form>
+                            ) : (
+                              <button
+                                type="button"
+                                className="view-trek-btn"
+                                onClick={() => {
+                                  setReviewingBookingId(b._id);
+                                  setReviewForm({ rating: 5, title: "", comment: "" });
+                                }}
+                              >
+                                <Star size={15} /> Write a Review
+                              </button>
+                            )}
+                          </div>
                         )}
 
                         <div className="booking-card-footer">

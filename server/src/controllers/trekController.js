@@ -1,6 +1,7 @@
 import { Trek } from "../models/Trek.js";
 import { Departure } from "../models/Departure.js";
 import { Review } from "../models/Review.js";
+import { getVerifiedReviewStats } from "../services/rankingService.js";
 
 // GET /api/treks
 export async function getTreks(req, res, next) {
@@ -11,6 +12,7 @@ export async function getTreks(req, res, next) {
       search,
       featured,
       published,
+      includeArchived,
       minPrice,
       maxPrice,
       sort,
@@ -19,6 +21,11 @@ export async function getTreks(req, res, next) {
     } = req.query;
 
     const query = {};
+
+    // Do not show archived treks unless explicitly requested
+    if (includeArchived !== "true") {
+      query.isArchived = { $ne: true };
+    }
 
     // By default, public only sees published treks unless admin specifically queries
     if (published !== undefined) {
@@ -55,25 +62,65 @@ export async function getTreks(req, res, next) {
       ];
     }
 
-    let sortOption = { featured: -1, createdAt: -1 };
+    let sortOption = { featuredOrder: 1, featured: -1, createdAt: -1 };
     if (sort === "price_asc") sortOption = { price: 1 };
     if (sort === "price_desc") sortOption = { price: -1 };
     if (sort === "duration_asc") sortOption = { duration: 1 };
     if (sort === "duration_desc") sortOption = { duration: -1 };
-    if (sort === "rating") sortOption = { rating: -1 };
+    if (sort === "newest") sortOption = { createdAt: -1 };
+    if (sort === "popular") sortOption = { uniqueViewsCount: -1, createdAt: -1 };
 
     const pageNum = Math.max(1, parseInt(page, 10));
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10)));
     const skip = (pageNum - 1) * limitNum;
 
-    const [treks, total] = await Promise.all([
-      Trek.find(query)
+    let treks;
+    let total;
+    let treksWithRatings;
+    if (sort === "rating") {
+      const allTreks = await Trek.find(query)
         .populate("destination", "name slug region")
-        .sort(sortOption)
-        .skip(skip)
-        .limit(limitNum),
-      Trek.countDocuments(query),
-    ]);
+        .sort({ createdAt: -1 });
+      const reviewStats = await getVerifiedReviewStats(allTreks.map((item) => item._id));
+      const ratedTreks = allTreks.map((item) => {
+        const trekData = item.toObject();
+        const stats = reviewStats.get(item._id.toString());
+        trekData.rating = stats?.rating ?? 0;
+        trekData.reviewCount = stats?.count ?? 0;
+        trekData.approvedReviewsCount = stats?.count ?? 0;
+        trekData.calculatedRating = stats?.rating ?? 0;
+        return trekData;
+      });
+      ratedTreks.sort((first, second) =>
+        second.rating - first.rating ||
+        second.approvedReviewsCount - first.approvedReviewsCount ||
+        new Date(second.createdAt) - new Date(first.createdAt)
+      );
+      total = ratedTreks.length;
+      treksWithRatings = ratedTreks.slice(skip, skip + limitNum);
+      treks = treksWithRatings;
+    } else {
+      const [trekRecords, count] = await Promise.all([
+        Trek.find(query)
+          .populate("destination", "name slug region")
+          .sort(sortOption)
+          .skip(skip)
+          .limit(limitNum),
+        Trek.countDocuments(query),
+      ]);
+      const reviewStats = await getVerifiedReviewStats(trekRecords.map((item) => item._id));
+      treks = trekRecords;
+      total = count;
+      treksWithRatings = trekRecords.map((item) => {
+        const trekData = item.toObject();
+        const stats = reviewStats.get(item._id.toString());
+        trekData.rating = stats?.rating ?? 0;
+        trekData.reviewCount = stats?.count ?? 0;
+        trekData.approvedReviewsCount = stats?.count ?? 0;
+        trekData.calculatedRating = stats?.rating ?? 0;
+        return trekData;
+      });
+    }
 
     res.json({
       success: true,
@@ -81,7 +128,7 @@ export async function getTreks(req, res, next) {
       total,
       page: pageNum,
       pages: Math.ceil(total / limitNum),
-      treks,
+      treks: treksWithRatings,
     });
   } catch (error) {
     next(error);
@@ -103,25 +150,34 @@ export async function getTrekBySlug(req, res, next) {
     }
 
     // Fetch upcoming guaranteed or available departures
-    const departures = await Departure.find({
+    const [departures, reviewStats] = await Promise.all([Departure.find({
       trek: trek._id,
       startDate: { $gte: new Date() },
-      status: { $ne: "Cancelled" },
-    }).sort({ startDate: 1 });
+      status: { $in: ["Available", "Guaranteed", "Filling Fast"] },
+    }).sort({ startDate: 1 }), getVerifiedReviewStats([trek._id])]);
+    const officialStats = reviewStats.get(trek._id.toString());
+    trek.rating = officialStats?.rating ?? 0;
+    trek.reviewCount = officialStats?.count ?? 0;
+    trek.approvedReviewsCount = officialStats?.count ?? 0;
 
-    // Fetch verified approved reviews
+    // Publicly show approved guest and verified reviews; only completed bookings can be displayed.
     const reviews = await Review.find({
       trek: trek._id,
       moderationStatus: "approved",
     })
       .populate("user", "name avatar nationality")
+      .populate("booking", "bookingStatus")
       .sort({ createdAt: -1 });
+    const eligibleReviews = reviews.filter(
+      (review) => !review.booking || review.booking.bookingStatus === "Completed"
+    );
+    eligibleReviews.forEach((review) => { review.booking = undefined; });
 
     res.json({
       success: true,
       trek,
       departures,
-      reviews,
+      reviews: eligibleReviews,
     });
   } catch (error) {
     next(error);
@@ -220,18 +276,50 @@ export async function togglePublishTrek(req, res, next) {
 export async function toggleFeaturedTrek(req, res, next) {
   try {
     const { id } = req.params;
+    const { featured, featuredOrder } = req.body;
     const trek = await Trek.findById(id);
     if (!trek) {
       return res.status(404).json({ success: false, message: "Trek not found." });
     }
 
-    trek.featured = !trek.featured;
+    if (featured !== undefined) {
+      trek.featured = Boolean(featured);
+    } else {
+      trek.featured = !trek.featured;
+    }
+
+    if (featuredOrder !== undefined && !isNaN(Number(featuredOrder))) {
+      trek.featuredOrder = Number(featuredOrder);
+    }
+
     await trek.save();
 
     res.json({
       success: true,
       trek,
       message: `Trek is now ${trek.featured ? "featured on homepage" : "unfeatured"}.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// PATCH /api/treks/:id/archive (Admin)
+export async function toggleArchiveTrek(req, res, next) {
+  try {
+    const { id } = req.params;
+    const trek = await Trek.findById(id);
+    if (!trek) {
+      return res.status(404).json({ success: false, message: "Trek not found." });
+    }
+
+    trek.isArchived = !trek.isArchived;
+    await trek.save();
+
+    res.json({
+      success: true,
+      trek,
+      message: `Trek '${trek.title}' is now ${trek.isArchived ? "soft-archived" : "restored"}.`,
     });
   } catch (error) {
     next(error);

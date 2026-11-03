@@ -13,6 +13,20 @@ import {
 } from "./models/index.js";
 
 async function seedData() {
+  if (!process.argv.includes("--reset")) {
+    throw new Error(
+      "Seeding deletes existing application data. Re-run with `npm run seed -- --reset` to confirm."
+    );
+  }
+
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const travelerPassword = process.env.SEED_TRAVELER_PASSWORD;
+  if (!adminPassword || adminPassword.length < 12 || !travelerPassword || travelerPassword.length < 12) {
+    throw new Error(
+      "Set SEED_ADMIN_PASSWORD and SEED_TRAVELER_PASSWORD to values of at least 12 characters before seeding."
+    );
+  }
+
   console.log("Connecting to database for seeding...");
   await connectDB();
 
@@ -29,8 +43,8 @@ async function seedData() {
   ]);
 
   console.log("Creating default users (Admin & Traveler)...");
-  const adminPasswordHash = await User.hashPassword("admin123456");
-  const travelerPasswordHash = await User.hashPassword("traveler123456");
+  const adminPasswordHash = await User.hashPassword(adminPassword);
+  const travelerPasswordHash = await User.hashPassword(travelerPassword);
 
   const admin = await User.create({
     name: "Dawa Tenzing Sherpa",
@@ -505,18 +519,6 @@ Keep your pack weight light so your porter is respected. Quality broken-in boots
     },
   ]);
 
-  console.log("Creating verified reviews...");
-  await Review.create([
-    {
-      user: traveler._id,
-      trek: treks[0]._id,
-      rating: 5,
-      comment: "Dawa and the Agaaman Sherpa crew were extraordinary! Safety was prioritized every single day. Standing on Kala Patthar at sunrise was the greatest experience of my life.",
-      verificationStatus: "Verified Trekker",
-      moderationStatus: "approved",
-    },
-  ]);
-
   console.log("Creating default settings...");
   await Setting.create({
     key: "general",
@@ -532,8 +534,7 @@ Keep your pack weight light so your porter is respected. Quality broken-in boots
 
   console.log("==========================================");
   console.log(" DATABASE SEEDING COMPLETED SUCCESSFULLY!");
-  console.log(" Admin user: admin@agaaman.com / admin123456");
-  console.log(" Traveler user: traveler@agaaman.com / traveler123456");
+  console.log("Seeded users with the configured seed passwords.");
   console.log("==========================================");
   process.exit(0);
 }

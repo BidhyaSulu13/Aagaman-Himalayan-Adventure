@@ -96,3 +96,19 @@ export function useRegions() {
 
   return regions;
 }
+
+export function useGuides() {
+  const [guides, setGuides] = useState(() => dataStore.getGuides());
+
+  useEffect(() => {
+    const handleUpdate = () => setGuides(dataStore.getGuides());
+    window.addEventListener("agaaman_data_changed", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("agaaman_data_changed", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, []);
+
+  return guides;
+}

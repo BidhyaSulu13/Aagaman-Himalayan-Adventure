@@ -2,8 +2,9 @@ const API_BASE = "/api";
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers = {
-    "Content-Type": "application/json",
+    ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     ...options.headers,
   };
 
@@ -13,7 +14,7 @@ async function request(endpoint, options = {}) {
     credentials: "include", // Send & receive HttpOnly cookies
   };
 
-  if (config.body && typeof config.body === "object" && !(config.body instanceof FormData)) {
+  if (config.body && typeof config.body === "object" && !isFormData) {
     config.body = JSON.stringify(config.body);
   }
 
@@ -37,6 +38,7 @@ export const api = {
   auth: {
     register: (body) => request("/auth/register", { method: "POST", body }),
     login: (body) => request("/auth/login", { method: "POST", body }),
+    adminLogin: (body) => request("/auth/admin/login", { method: "POST", body }),
     logout: () => request("/auth/logout", { method: "POST" }),
     getMe: () => request("/auth/me"),
     updateProfile: (body) => request("/auth/profile", { method: "PUT", body }),
@@ -57,7 +59,29 @@ export const api = {
     update: (id, body) => request(`/treks/${id}`, { method: "PUT", body }),
     delete: (id) => request(`/treks/${id}`, { method: "DELETE" }),
     togglePublish: (id) => request(`/treks/${id}/publish`, { method: "PATCH" }),
-    toggleFeatured: (id) => request(`/treks/${id}/featured`, { method: "PATCH" }),
+    toggleFeatured: (id, body = {}) => request(`/treks/${id}/featured`, { method: "PATCH", body }),
+    toggleArchive: (id) => request(`/treks/${id}/archive`, { method: "PATCH" }),
+  },
+
+  // ── RANKINGS & DISCOVERY ──
+  rankings: {
+    getPopular: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/rankings/popular${q ? `?${q}` : ""}`);
+    },
+    getTopRated: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/rankings/top-rated${q ? `?${q}` : ""}`);
+    },
+    getFeatured: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/rankings/featured${q ? `?${q}` : ""}`);
+    },
+    trackView: (trekId) => request(`/rankings/view/${trekId}`, { method: "POST" }),
+    setFeatured: (trekId, body) =>
+      request(`/rankings/featured/${trekId}`, { method: "PATCH", body }),
+    updateFeaturedOrder: (items) =>
+      request(`/rankings/featured-order`, { method: "PUT", body: { items } }),
   },
 
   // ── DESTINATIONS ──
@@ -67,6 +91,15 @@ export const api = {
     create: (body) => request("/destinations", { method: "POST", body }),
     update: (id, body) => request(`/destinations/${id}`, { method: "PUT", body }),
     delete: (id) => request(`/destinations/${id}`, { method: "DELETE" }),
+  },
+
+  // ── REGIONS ──
+  regions: {
+    getAll: () => request("/regions"),
+    getBySlug: (slug) => request(`/regions/${slug}`),
+    create: (body) => request("/regions", { method: "POST", body }),
+    update: (id, body) => request(`/regions/${id}`, { method: "PUT", body }),
+    delete: (id) => request(`/regions/${id}`, { method: "DELETE" }),
   },
 
   // ── DEPARTURES ──
@@ -91,12 +124,22 @@ export const api = {
       return request(`/bookings${q ? `?${q}` : ""}`);
     },
     updateStatus: (id, body) => request(`/bookings/${id}/status`, { method: "PATCH", body }),
+    update: (id, body) => request(`/bookings/${id}`, { method: "PUT", body }),
+    delete: (id) => request(`/bookings/${id}`, { method: "DELETE" }),
   },
 
   // ── REVIEWS ──
   reviews: {
+    getApproved: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/reviews/approved${q ? `?${q}` : ""}`);
+    },
     getForTrek: (trekId) => request(`/reviews/trek/${trekId}`),
     create: (body) => request("/reviews", { method: "POST", body }),
+    requestVerification: (body) =>
+      request("/reviews/request-verification", { method: "POST", body }),
+    getVerification: (token) => request(`/reviews/verify/${encodeURIComponent(token)}`),
+    createVerified: (body) => request("/reviews/verified", { method: "POST", body }),
     getAll: (params = {}) => {
       const q = new URLSearchParams(params).toString();
       return request(`/reviews${q ? `?${q}` : ""}`);
@@ -118,6 +161,7 @@ export const api = {
       const q = new URLSearchParams(params).toString();
       return request(`/articles${q ? `?${q}` : ""}`);
     },
+    getAdminAll: () => request("/articles/admin"),
     getBySlug: (slug) => request(`/articles/${slug}`),
     create: (body) => request("/articles", { method: "POST", body }),
     update: (id, body) => request(`/articles/${id}`, { method: "PUT", body }),
@@ -136,6 +180,22 @@ export const api = {
       request(`/trip-requests/${id}/status`, { method: "PATCH", body: { requestStatus } }),
   },
 
+  // ── CONTACT MESSAGES ──
+  contactMessages: {
+    create: (body) => request("/contact-messages", { method: "POST", body }),
+    getAll: () => request("/contact-messages"),
+    updateStatus: (id, status) =>
+      request(`/contact-messages/${id}/status`, { method: "PATCH", body: { status } }),
+  },
+
+  uploads: {
+    trekImages: (files) => {
+      const body = new FormData();
+      Array.from(files).forEach((file) => body.append("images", file));
+      return request("/uploads/treks", { method: "POST", body });
+    },
+  },
+
   // ── ADMIN ──
   admin: {
     getStats: () => request("/admin/stats"),
@@ -148,6 +208,7 @@ export const api = {
     updateUserRole: (id, role) => request(`/users/${id}/role`, { method: "PATCH", body: { role } }),
     updateUserStatus: (id, status) =>
       request(`/users/${id}/status`, { method: "PATCH", body: { status } }),
+    deleteUser: (id) => request(`/users/${id}`, { method: "DELETE" }),
   },
 };
 

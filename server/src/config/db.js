@@ -10,9 +10,6 @@ export async function connectDB() {
     return conn;
   } catch (error) {
     console.error("MongoDB connection error:", error.message);
-    // Don't exit process in development to allow hot reload or inspection
-    if (process.env.NODE_ENV === "production") {
-      process.exit(1);
-    }
+    throw error;
   }
 }

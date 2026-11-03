@@ -66,19 +66,20 @@ const bookingSchema = new Schema(
     bookingStatus: {
       type: String,
       enum: [
+        "Pending",
         "Requested",
         "Pending confirmation",
         "Confirmed",
         "Cancelled",
         "Completed",
       ],
-      default: "Requested",
+      default: "Pending",
       index: true,
     },
     paymentStatus: {
       type: String,
       enum: ["Unpaid", "Pending", "Paid", "Failed", "Refunded"],
-      default: "Unpaid",
+      default: "Pending",
       index: true,
     },
     paymentReference: {
@@ -92,6 +93,20 @@ const bookingSchema = new Schema(
     cancellationReason: {
       type: String,
       default: null,
+    },
+    reviewVerificationTokenHash: {
+      type: String,
+      select: false,
+      index: true,
+    },
+    reviewVerificationEmail: {
+      type: String,
+      lowercase: true,
+      select: false,
+    },
+    reviewVerificationExpiresAt: {
+      type: Date,
+      select: false,
     },
   },
   {

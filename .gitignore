@@ -1,8 +1,8 @@
 node_modules/
+/server/uploads/
 dist/
 coverage/
 .env
 .env.*
 !.env.example
 npm-debug.log*
-

@@ -28,17 +28,16 @@ import {
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useFavorites } from "../../context/FavoritesContext.jsx";
-import { useTreks } from "../../hooks/useDataStore.js";
+import { useDestinations, useTreks } from "../../hooks/useDataStore.js";
+import { api } from "../../services/api.js";
+import { dataStore } from "../../services/dataStore.js";
 
-// Regions listed in Spade Himalaya style
-const regionsList = [
-  { id: "everest", label: "Everest Region", match: ["Khumbu", "Everest"] },
-  { id: "annapurna", label: "Annapurna Region", match: ["Annapurna"] },
-  { id: "langtang", label: "Langtang Region", match: ["Langtang"] },
-  { id: "manaslu", label: "Manaslu Region", match: ["Manaslu"] },
-  { id: "makalu", label: "Makalu Region", match: ["Makalu"] },
-  { id: "dhaulagiri", label: "Dhaulagiri", match: ["Dhaulagiri"] },
-  { id: "dolpo", label: "Dolpo Region", match: ["Dolpo"] },
+// Static fallback regions (used only when API is unreachable)
+const FALLBACK_REGIONS = [
+  { id: "everest", slug: "everest", label: "Everest Region", name: "Khumbu", match: ["Khumbu", "Everest"] },
+  { id: "annapurna", slug: "annapurna", label: "Annapurna Region", name: "Annapurna", match: ["Annapurna"] },
+  { id: "langtang", slug: "langtang", label: "Langtang Region", name: "Langtang", match: ["Langtang"] },
+  { id: "manaslu", slug: "manaslu", label: "Manaslu Region", name: "Manaslu", match: ["Manaslu"] },
 ];
 
 const guideSublinks = [
@@ -77,9 +76,10 @@ const guideSublinks = [
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null); // 'treks' | 'guide' | null
-  const [activeRegionId, setActiveRegionId] = useState("everest");
-  const [mobileExpanded, setMobileExpanded] = useState({ treks: false, guide: false });
+  const [openDropdown, setOpenDropdown] = useState(null); // 'treks' | 'guide' | 'destinations' | null
+  const [activeRegionId, setActiveRegionId] = useState(null);
+  const [mobileExpanded, setMobileExpanded] = useState({ treks: false, guide: false, destinations: false });
+  const [dynamicRegions, setDynamicRegions] = useState(FALLBACK_REGIONS);
   const location = useLocation();
   const navigate = useNavigate();
   const [search, setSearch] = useState(() => new URLSearchParams(location.search).get("search") || "");
@@ -90,6 +90,40 @@ export function Header() {
   const closeTimeoutRef = useRef(null);
 
   const treks = useTreks();
+  const destinations = useDestinations();
+
+  // Fetch dynamic regions from API on mount
+  useEffect(() => {
+    api.regions.getAll()
+      .then((res) => {
+        if (res.success && res.regions && res.regions.length > 0) {
+          const mapped = res.regions.map((r) => ({
+            id: r.slug || r._id,
+            slug: r.slug,
+            label: r.label || r.name,
+            name: r.name,
+            // Build match terms from region name + common aliases
+            match: [r.name, ...(r.label ? [r.label] : [])].filter(Boolean),
+          }));
+          setDynamicRegions(mapped);
+          // Set initial active to first region
+          if (mapped.length > 0) setActiveRegionId(mapped[0].id);
+          // Sync into dataStore for other consumers
+          res.regions.forEach((r) => dataStore.saveRegion({
+            id: r._id || r.slug,
+            slug: r.slug,
+            name: r.name,
+            label: r.label || r.name,
+            image: r.image || "",
+          }, { persist: false }));
+        } else {
+          setActiveRegionId(FALLBACK_REGIONS[0].id);
+        }
+      })
+      .catch(() => {
+        setActiveRegionId(FALLBACK_REGIONS[0].id);
+      });
+  }, []);
 
   // Close menus on route change
   useEffect(() => {
@@ -133,13 +167,13 @@ export function Header() {
   };
 
   // Get treks for currently active region in the mega-menu
-  const currentRegion = regionsList.find((r) => r.id === activeRegionId) || regionsList[0];
-  const regionTreks = treks.filter((t) => {
+  const currentRegion = dynamicRegions.find((r) => r.id === activeRegionId) || dynamicRegions[0];
+  const regionTreks = currentRegion ? treks.filter((t) => {
     return currentRegion.match.some((m) =>
       t.region?.toLowerCase().includes(m.toLowerCase()) ||
       t.location?.toLowerCase().includes(m.toLowerCase())
     );
-  });
+  }) : [];
 
   // Group region treks by Grade based on duration
   const easyTreks = regionTreks.filter((t) => t.duration <= 6 || t.difficulty?.toLowerCase() === "easy");
@@ -221,19 +255,19 @@ export function Header() {
                   <div className="spade-mega-shell">
                     {/* Left Regions Sidebar */}
                     <aside className="spade-regions-sidebar">
-                      {regionsList.map((reg) => {
+                      {dynamicRegions.map((reg) => {
                         const isSelected = activeRegionId === reg.id;
                         return (
-                          <button
+                          <Link
                             key={reg.id}
-                            type="button"
+                            to={`/regions/${reg.slug || reg.id}`}
                             className={`spade-region-tab${isSelected ? " is-active" : ""}`}
                             onMouseEnter={() => setActiveRegionId(reg.id)}
-                            onClick={() => setActiveRegionId(reg.id)}
+                            onClick={() => setOpenDropdown(null)}
                           >
                             <span>{reg.label}</span>
                             <ArrowRight size={14} className="spade-tab-arrow" />
-                          </button>
+                          </Link>
                         );
                       })}
                     </aside>
@@ -241,13 +275,31 @@ export function Header() {
                     {/* Right Treks Content Pane with Grade Categories */}
                     <div className="spade-treks-panel">
                       <div className="spade-panel-header">
-                        <h2>{currentRegion.label}</h2>
-                        <span className="spade-panel-count">
-                          {regionTreks.length > 0 ? `${regionTreks.length} Handcrafted Expeditions` : "Select a trail"}
-                        </span>
+                        <h2>
+                          <Link
+                            to={`/regions/${currentRegion?.slug || currentRegion?.id}`}
+                            onClick={() => setOpenDropdown(null)}
+                            style={{ color: "inherit", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "8px" }}
+                          >
+                            {currentRegion?.label} <ArrowRight size={18} />
+                          </Link>
+                        </h2>
+                        <Link
+                          to={`/regions/${currentRegion?.slug || currentRegion?.id}`}
+                          className="spade-panel-count"
+                          onClick={() => setOpenDropdown(null)}
+                          style={{ textDecoration: "underline", color: "#083c34", fontWeight: "600" }}
+                        >
+                          View Region Portal ({regionTreks.length} Expeditions) →
+                        </Link>
                       </div>
 
-                      {regionTreks.length === 0 ? (
+                      {!currentRegion ? (
+                        <div className="spade-empty-region">
+                          <Mountain size={28} />
+                          <p>Loading regions…</p>
+                        </div>
+                      ) : regionTreks.length === 0 ? (
                         <div className="spade-empty-region">
                           <Mountain size={28} />
                           <p>Custom expedition inquiries open for {currentRegion.label}. Contact our senior Sherpa guides.</p>
@@ -342,8 +394,8 @@ export function Header() {
 
                       <div className="spade-panel-footer">
                         <span>Looking for customized dates or private groups?</span>
-                        <Link to={`/treks?region=${encodeURIComponent(currentRegion.label)}`} className="spade-view-region-btn" onClick={() => setOpenDropdown(null)}>
-                          View All in {currentRegion.label} <ArrowRight size={14} />
+                        <Link to={`/regions/${currentRegion?.slug || currentRegion?.id}`} className="spade-view-region-btn" onClick={() => setOpenDropdown(null)}>
+                          View All in {currentRegion?.label} <ArrowRight size={14} />
                         </Link>
                       </div>
                     </div>
@@ -358,15 +410,19 @@ export function Header() {
                 <Link to="/treks" className="mobile-sublink is-parent" onClick={() => setMenuOpen(false)}>
                   All Nepal Treks Catalog →
                 </Link>
-                {treks.map((trek) => (
+                <div style={{ padding: "8px 12px 4px", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>
+                  Nepal Mountain Regions
+                </div>
+                {dynamicRegions.map((reg) => (
                   <Link
-                    key={trek.slug}
-                    to={`/treks/${trek.slug}`}
+                    key={reg.id}
+                    to={`/regions/${reg.slug || reg.id}`}
                     className="mobile-sublink"
                     onClick={() => setMenuOpen(false)}
+                    style={{ fontWeight: "600", color: "#083c34" }}
                   >
-                    <span>{trek.title}</span>
-                    <small>{trek.duration} Days · {trek.difficulty}</small>
+                    <span>{reg.label}</span>
+                    <small>Explore Region Portal →</small>
                   </Link>
                 ))}
               </div>
@@ -457,10 +513,133 @@ export function Header() {
             )}
           </div>
 
-          {/* 3. Destinations Link */}
-          <NavLink to="/destinations" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-            Destinations
-          </NavLink>
+          {/* 3. Destinations Dropdown (Tourist & Cultural Spots) */}
+          <div
+            className={`nav-item-dropdown destinations-dropdown${openDropdown === "destinations" ? " is-open" : ""}`}
+            onMouseEnter={() => handleMouseEnter("destinations")}
+            onMouseLeave={handleMouseLeave}
+          >
+            <div className="nav-dropdown-trigger-row">
+              <NavLink
+                to="/destinations"
+                className={({ isActive }) =>
+                  isActive || location.pathname.startsWith("/destinations")
+                    ? "nav-link active has-dropdown"
+                    : "nav-link has-dropdown"
+                }
+                onClick={(e) => {
+                  if (window.innerWidth <= 1024) {
+                    e.preventDefault();
+                    setMobileExpanded((prev) => ({ ...prev, destinations: !prev.destinations }));
+                  }
+                }}
+              >
+                <span>Destinations</span>
+                <ChevronDown size={15} className="dropdown-caret" />
+              </NavLink>
+            </div>
+
+            {/* Destinations Dropdown Panel */}
+            <AnimatePresence>
+              {openDropdown === "destinations" && (
+                <motion.div
+                  className="spade-destinations-dropdown"
+                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                >
+                  <div className="dest-dropdown-header">
+                    <div className="dest-dropdown-header-left">
+                      <MapPin size={16} />
+                      <span>Here beautiful destinations you can arrive on.</span>
+                    </div>
+                    <Link
+                      to="/destinations"
+                      className="dest-dropdown-view-all"
+                      onClick={() => setOpenDropdown(null)}
+                    >
+                      All Destinations ({destinations.length}) →
+                    </Link>
+                  </div>
+
+                  <div className="dest-dropdown-grid">
+                    {destinations.slice(0, 8).map((dest) => {
+                      const img = dest.images?.[0] || dest.image || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=400&q=80";
+                      return (
+                        <Link
+                          key={dest.slug}
+                          to={`/destinations/${dest.slug}`}
+                          className="dest-dropdown-card"
+                          onClick={() => setOpenDropdown(null)}
+                        >
+                          <div className="dest-card-thumb-wrap">
+                            <img src={img} alt={dest.name} className="dest-card-thumb" loading="lazy" />
+                            {dest.elevation > 0 && (
+                              <span className="dest-card-elevation">{dest.elevation.toLocaleString()}m</span>
+                            )}
+                          </div>
+                          <div className="dest-card-info">
+                            <div className="dest-card-title-row">
+                              <strong className="dest-card-title">{dest.name}</strong>
+                              <span className="dest-card-region">{dest.region || "Nepal"}</span>
+                            </div>
+                            <p className="dest-card-tagline">
+                              {dest.label || (dest.highlights && dest.highlights[0]) || (dest.description || "").slice(0, 55) + "..."}
+                            </p>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  <div className="dest-dropdown-footer">
+                    <div className="dest-footer-note">
+                      {/* <span>✨ Culturally rich towns, lakeside sanctuaries & mountain hubs — live synchronized with Admin.</span> */}
+                    </div>
+                    <Link
+                      to="/destinations"
+                      className="dest-footer-btn"
+                      onClick={() => setOpenDropdown(null)}
+                    >
+                      Explore Interactive Map <ArrowRight size={14} />
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Mobile View for Destinations */}
+            {menuOpen && mobileExpanded.destinations && (
+              <div className="mobile-accordion-content spade-mobile-accordion">
+                <Link to="/destinations" className="mobile-sublink is-parent" onClick={() => setMenuOpen(false)}>
+                  All Nepal Destinations Catalog ({destinations.length}) →
+                </Link>
+                <div style={{ padding: "8px 12px 4px", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>
+                  Iconic Cultural Places & Hubs
+                </div>
+                {destinations.slice(0, 8).map((dest) => (
+                  <Link
+                    key={dest.slug}
+                    to={`/destinations/${dest.slug}`}
+                    className="mobile-sublink"
+                    onClick={() => setMenuOpen(false)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 600, color: "#083c34" }}>{dest.name}</span>
+                      <small style={{ display: "block", color: "#64748b" }}>{dest.region || "Nepal"}</small>
+                    </div>
+                    {dest.elevation > 0 && (
+                      <span style={{ fontSize: "11px", background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", color: "#475569" }}>
+                        {dest.elevation}m
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* 4. Journal / Field Notes */}
           <NavLink to="/journal" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
@@ -468,7 +647,7 @@ export function Header() {
           </NavLink>
 
           {/* 5. Contact Us */}
-          <NavLink to="/contact" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          <NavLink to="/contact" className={({ isActive }) => (isActive ? "nav-link nav-link-human active" : "nav-link nav-link-human")}>
             Contact Us
           </NavLink>
 
@@ -531,7 +710,7 @@ export function Header() {
           )}
 
           {/* Plan Your Trip Button (Spade Orange Style) */}
-          <Link to="/contact" className="button button-orange header-cta-btn">
+          <Link to="/contact" className="button button-orange header-cta-btn nav-link-human">
             <span>Plan Your Trip</span>
             <ArrowUpRight size={16} />
           </Link>

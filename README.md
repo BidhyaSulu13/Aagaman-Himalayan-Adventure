@@ -107,6 +107,12 @@ To create an administrator without clearing any application data, set `ADMIN_EMA
 
 SMTP settings are optional for development; without them, email is simulated in the server log.
 
+### Traveler sign-in and booking access
+
+The traveler login and registration pages support password sign-in, Google sign-in, and one-time email links. To enable Google sign-in, configure the same Google OAuth web client ID as `GOOGLE_CLIENT_ID` in `server/.env` and `VITE_GOOGLE_CLIENT_ID` in `client/.env` (copy from `client/.env.example`). Add each deployed website origin to the OAuth client's authorized JavaScript origins. One-time sign-in links and booking confirmations require working SMTP settings outside local development.
+
+Travelers must sign in before saving treks or booking a package. Trek listings and details remain public, and anonymous trek views are counted as unverified views. Completed bookings can be reviewed from the dashboard; reviews remain subject to administrator approval.
+
 Start the API and frontend together from the client directory. The API must be
 configured and able to start before Vite launches:
 
@@ -115,8 +121,11 @@ Set-Location E:\Himalayan-adventure\client
 npm run dev
 ```
 
-This command waits for the API health check before starting Vite. To run only
-the frontend (for example, when the API is already running separately), use:
+This command reuses an already healthy API or starts it, then starts Vite on
+port 5173. Visit **http://localhost:5173** in your browser; local development
+uses HTTP, not HTTPS. If port 5173 is already occupied, stop the old frontend
+process before starting another one. To run only the frontend (when the API is
+already running separately), use:
 
 ```powershell
 npm run dev:client
@@ -132,7 +141,7 @@ External images are loaded from Unsplash image URLs and map tiles from OpenStree
 
 The seed script clears existing application collections. It refuses to run unless explicitly confirmed with `npm run seed -- --reset` from `server/`, and requires `SEED_ADMIN_PASSWORD` and `SEED_TRAVELER_PASSWORD` in `server/.env` (each at least 12 characters). Do not run it against a database containing data you need to keep.
 
-There is no automated test suite configured yet. Validate changes with `npm run build` in `client/` and syntax checks or API smoke tests in `server/`. No deployment has been configured.
+There is no automated test suite configured yet. Validate changes with `npm run build` in `client/` and syntax checks or API smoke tests in `server/`. No deployment has been configured, so there is no public website URL yet. After deploying the frontend and API, use the frontend URL provided by the hosting platform.
 
 ## Development roadmap
 

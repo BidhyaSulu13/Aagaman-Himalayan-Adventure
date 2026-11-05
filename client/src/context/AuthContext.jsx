@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "../services/api.js";
 
 const AuthContext = createContext(null);
@@ -28,29 +28,45 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const res = await api.auth.login({ email, password });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  };
+  }, []);
 
-  const loginAdmin = async (email, password) => {
+  const loginAdmin = useCallback(async (email, password) => {
     const res = await api.auth.adminLogin({ email, password });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  };
+  }, []);
 
-  const register = async (name, email, password) => {
+  const loginWithGoogle = useCallback(async (credential) => {
+    const res = await api.auth.googleLogin({ credential });
+    if (res.success && res.user) {
+      setUser(res.user);
+    }
+    return res;
+  }, []);
+
+  const loginWithEmailLink = useCallback(async (token) => {
+    const res = await api.auth.verifyLoginLink({ token });
+    if (res.success && res.user) {
+      setUser(res.user);
+    }
+    return res;
+  }, []);
+
+  const register = useCallback(async (name, email, password) => {
     const res = await api.auth.register({ name, email, password });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  };
+  }, []);
 
   const logout = async () => {
     try {
@@ -80,6 +96,8 @@ export function AuthProvider({ children }) {
     isAdmin: user?.role === "admin",
     login,
     loginAdmin,
+    loginWithGoogle,
+    loginWithEmailLink,
     register,
     logout,
     updateProfile,

@@ -96,6 +96,16 @@ export async function recordUniqueView({ trekId, req }) {
     req.ip ||
     req.socket?.remoteAddress ||
     "";
+  const isVerifiedTrekker = req.user?.role === "traveler" &&
+    req.user.emailVerified === true &&
+    await Booking.exists({
+      trek: trekId,
+      bookingStatus: "Completed",
+      $or: [
+        { user: req.user._id },
+        { "travelerDetails.email": req.user.email.toLowerCase() },
+      ],
+    });
 
   await TrekView.create({
     trek: trekId,
@@ -103,6 +113,7 @@ export async function recordUniqueView({ trekId, req }) {
     ip,
     userAgent,
     user: req.user?._id || null,
+    verificationStatus: isVerifiedTrekker ? "Verified Trekker" : "Unverified",
   });
 
   // Increment cached unique views on Trek model for fast indexing

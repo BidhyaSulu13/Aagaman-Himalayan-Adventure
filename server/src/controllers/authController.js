@@ -1,7 +1,22 @@
 import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
+import { Booking } from "../models/Booking.js";
 import { User } from "../models/User.js";
 import { clearTokenCookie, setTokenCookie, signToken } from "../middleware/auth.js";
-import { sendPasswordResetEmail } from "../services/emailService.js";
+import {
+  sendLoginLinkEmail,
+  sendPasswordResetEmail,
+} from "../services/emailService.js";
+
+const googleOAuthClient = new OAuth2Client();
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 // Helper to sanitize user object for client response (NEVER return passwordHash)
 function sanitizeUser(user) {
@@ -46,6 +61,7 @@ export async function register(req, res, next) {
       email: email.toLowerCase().trim(),
       passwordHash,
       role: "traveler",
+      emailVerified: false,
     });
 
     const token = signToken(user);
@@ -62,6 +78,169 @@ export async function register(req, res, next) {
   }
 }
 
+// POST /api/auth/google
+export async function googleLogin(req, res, next) {
+    try {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const credential = String(req.body.credential || "");
+      if (!clientId) {
+        return res.status(503).json({
+          success: false,
+          message: "Google sign-in is not configured. Set GOOGLE_CLIENT_ID on the API and VITE_GOOGLE_CLIENT_ID on the client.",
+        });
+      }
+      if (!credential || credential.length > 10_000) {
+        return res.status(400).json({ success: false, message: "A valid Google credential is required." });
+      }
+
+      const ticket = await googleOAuthClient.verifyIdToken({
+        idToken: credential,
+        audience: clientId,
+      });
+      const payload = ticket.getPayload();
+      if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+        return res.status(401).json({ success: false, message: "Google could not verify this email address." });
+      }
+
+      const email = payload.email.toLowerCase().trim();
+      let user = await User.findOne({ googleId: payload.sub }).select("+googleId");
+      if (!user) {
+        user = await User.findOne({ email }).select("+googleId");
+      }
+      if (user?.role === "admin") {
+        return res.status(403).json({ success: false, message: "Use the admin sign-in page for this account." });
+      }
+      if (user?.status === "suspended") {
+        return res.status(403).json({ success: false, message: "Account is suspended. Please contact support." });
+      }
+      if (user?.googleId && user.googleId !== payload.sub) {
+        return res.status(409).json({ success: false, message: "This account is linked to a different Google identity." });
+      }
+
+      if (!user) {
+        user = await User.create({
+          name: String(payload.name || email.split("@")[0]).trim().slice(0, 100),
+          email,
+          googleId: payload.sub,
+          emailVerified: true,
+          avatar: payload.picture || undefined,
+          role: "traveler",
+        });
+      } else {
+        user.googleId = payload.sub;
+        user.emailVerified = true;
+        if (payload.picture) user.avatar = payload.picture;
+        await user.save();
+      }
+
+      const token = signToken(user);
+      setTokenCookie(res, token);
+      return res.json({
+        success: true,
+        user: sanitizeUser(user),
+        token,
+        message: "Signed in with Google.",
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(409).json({ success: false, message: "This Google account could not be linked. Please sign in with your existing method." });
+      }
+      next(error);
+    }
+  }
+
+// POST /api/auth/request-login-link
+export async function requestLoginLink(req, res, next) {
+    try {
+      const email = String(req.body.email || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+        return res.status(400).json({ success: false, message: "Enter a valid email address." });
+      }
+
+      let user = await User.findOne({ email }).select("+loginLinkTokenHash +loginLinkExpiresAt");
+      if (!user) {
+        const booking = await Booking.findOne({
+          "travelerDetails.email": new RegExp(`^${escapeRegex(email)}$`, "i"),
+        }).select("travelerDetails");
+        const traveler = booking?.travelerDetails.find(
+          (detail) => detail.email.toLowerCase() === email
+        );
+        if (traveler) {
+          user = await User.create({
+            name: traveler.fullName,
+            email,
+            role: "traveler",
+          });
+        }
+      }
+
+      if (user && user.role === "traveler" && user.status !== "suspended") {
+        const token = crypto.randomBytes(32).toString("base64url");
+        user.loginLinkTokenHash = hashToken(token);
+        user.loginLinkExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        await user.save();
+
+        const returnTo = String(req.body.returnTo || "/dashboard");
+        await sendLoginLinkEmail({
+          email,
+          name: user.name,
+          token,
+          returnTo,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "If this email matches an account or booking, a one-time sign-in link has been sent.",
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.json({
+          success: true,
+          message: "If this email matches an account or booking, a one-time sign-in link has been sent.",
+        });
+      }
+      next(error);
+    }
+  }
+
+// POST /api/auth/verify-login-link
+export async function verifyLoginLink(req, res, next) {
+    try {
+      const token = String(req.body.token || "");
+      if (!token || token.length > 200) {
+        return res.status(400).json({ success: false, message: "This sign-in link is invalid or has expired." });
+      }
+
+      const user = await User.findOneAndUpdate(
+        {
+          loginLinkTokenHash: hashToken(token),
+          loginLinkExpiresAt: { $gt: new Date() },
+          status: "active",
+          role: "traveler",
+        },
+        {
+          $set: { emailVerified: true },
+          $unset: { loginLinkTokenHash: 1, loginLinkExpiresAt: 1 },
+        },
+        { returnDocument: "after" }
+      );
+      if (!user) {
+        return res.status(400).json({ success: false, message: "This sign-in link is invalid or has expired. Request a new link." });
+      }
+
+      const sessionToken = signToken(user);
+      setTokenCookie(res, sessionToken);
+      return res.json({
+        success: true,
+        user: sanitizeUser(user),
+        token: sessionToken,
+        message: "Email verified. You are signed in.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 async function authenticate(req, res, next, requiredRole) {
   try {
     const { email, password } = req.body;

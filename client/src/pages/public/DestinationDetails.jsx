@@ -1,34 +1,67 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Mountain, Utensils, Users, Navigation, Calendar, ArrowRight } from "lucide-react";
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { SectionHeading } from "../../components/common/SectionHeading.jsx";
 import { TrekCard } from "../../components/trek/TrekCard.jsx";
-import { DemoBanner, MapLoading } from "../../components/common/PagePrimitives.jsx";
-import { useDestinations, useTreks } from "../../hooks/useDataStore.js";
+import { MapLoading } from "../../components/common/PagePrimitives.jsx";
+import { api } from "../../services/api.js";
 import { NotFoundPage } from "./MiscPages.jsx";
 
 const HimalayanMap = lazy(() => import("../../components/maps/HimalayanMap.jsx"));
 
 export function DestinationDetailPage() {
   const { slug } = useParams();
-  const destinations = useDestinations();
-  const allTreks = useTreks();
-  const destination = destinations.find((d) => d.slug === slug);
+  const [destination, setDestination] = useState(null);
+  const [destinationTreks, setDestinationTreks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setDestination(null);
+    setDestinationTreks([]);
+    setLoadError("");
+    api.destinations.getBySlug(slug)
+      .then((response) => {
+        if (!active) return;
+        const record = response.destination;
+        if (!record) return;
+        setDestination({
+          ...record,
+          id: record._id || record.id,
+          image: record.images?.[0] || record.image || "",
+          lat: record.coordinates?.lat ?? record.lat,
+          lng: record.coordinates?.lng ?? record.lng,
+        });
+        setDestinationTreks(Array.isArray(response.treks) ? response.treks.map((trek) => ({
+          ...trek,
+          image: trek.images?.[0] || trek.image || "",
+          elevation: trek.maximumElevation ?? trek.elevation ?? 0,
+          description: trek.shortDescription || trek.description || "",
+        })) : []);
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (!error.message.toLowerCase().includes("not found")) {
+          setLoadError(error.message || "Unable to load this destination.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [slug]);
+
+  if (loading) {
+    return <Page className="detail-page"><p className="section-wrap" role="status">Loading destination…</p></Page>;
+  }
+  if (loadError) {
+    return <Page className="detail-page"><p className="section-wrap" role="alert">{loadError}</p></Page>;
+  }
   if (!destination) return <NotFoundPage />;
-
-  // Find treks belonging to this destination by slug, name match, or region match
-  const destinationTreks = allTreks.filter((t) => {
-    if (destination.trekSlugs && destination.trekSlugs.includes(t.slug)) return true;
-    const destName = destination.name.toLowerCase();
-    const destRegion = (destination.region || "").toLowerCase();
-    return (
-      t.region?.toLowerCase().includes(destName) ||
-      t.location?.toLowerCase().includes(destName) ||
-      (destRegion && t.region?.toLowerCase().includes(destRegion))
-    );
-  });
 
   const hasAttractions = destination.attractions && destination.attractions.length > 0;
   const hasAccommodation = destination.accommodationTypes && destination.accommodationTypes.length > 0;
@@ -37,8 +70,6 @@ export function DestinationDetailPage() {
 
   return (
     <Page className="detail-page">
-      <DemoBanner />
-
       {/* Hero */}
       <section className="destination-detail-hero" style={{ "--destination-image": `url("${destination.image}")` }}>
         <div className="destination-detail-overlay" />
@@ -124,9 +155,9 @@ export function DestinationDetailPage() {
         <Reveal>
           <section className="section-wrap dest-rich-section">
             <div className="dest-section-title">
-              <span className="eyebrow">Highlights & Sacred Landmarks</span>
+              <span className="eyebrow">Places to explore</span>
               <h2>Key Attractions in {destination.name}</h2>
-              <p>From ancient monasteries to glacial alpine lakes — the iconic waypoints that define this Himalayan territory.</p>
+              <p>Explore notable natural, cultural, and visitor sites in and around {destination.name}. Access and opening conditions can vary.</p>
             </div>
             <div className="dest-attractions-grid">
               {destination.attractions.map((attr, idx) => (
@@ -146,9 +177,9 @@ export function DestinationDetailPage() {
         <Reveal>
           <section className="section-wrap dest-rich-section">
             <div className="dest-section-title">
-              <span className="eyebrow">Where to Stay</span>
-              <h2>Accommodation Along the Trail</h2>
-              <p>From family-run teahouses with communal warmth to luxury mountain lodges — find the right shelter for your expedition style.</p>
+              <span className="eyebrow">Where to stay</span>
+              <h2>Accommodation in {destination.name}</h2>
+              <p>Accommodation types and amenities vary by property. Confirm location, accessibility, and included services directly with your chosen stay.</p>
             </div>
             <div className="dest-accommodation-grid">
               {destination.accommodationTypes.map((stay, idx) => (
@@ -180,9 +211,9 @@ export function DestinationDetailPage() {
         <Reveal>
           <section className="section-wrap dest-rich-section">
             <div className="dest-section-title">
-              <span className="eyebrow">Local Peoples & Living Traditions</span>
+              <span className="eyebrow">Local people and living traditions</span>
               <h2>Cultural Heritage & Ethnic Communities</h2>
-              <p>Understanding the communities who call these mountains home transforms a trek into a genuine cultural exchange.</p>
+              <p>Learning about the communities and traditions of {destination.name} can add context to a visit. Follow local guidance and approach cultural sites respectfully.</p>
             </div>
             <div className="dest-culture-card">
               <div className="ethnic-groups-row">
@@ -212,7 +243,7 @@ export function DestinationDetailPage() {
         <Reveal>
           <section className="section-wrap dest-rich-section">
             <div className="dest-section-title">
-              <span className="eyebrow">Off the Main Trail</span>
+              <span className="eyebrow">Explore nearby</span>
               <h2>Nearby Day Hikes & Side Trips</h2>
               <p>Extend your adventure with these curated excursions from {destination.name} — each offering a unique vantage point.</p>
             </div>

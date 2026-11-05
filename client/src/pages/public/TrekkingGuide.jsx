@@ -27,14 +27,13 @@ import {
 } from "lucide-react";
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { SectionHeading } from "../../components/common/SectionHeading.jsx";
-import { useGuides } from "../../hooks/useDataStore.js";
 
 const guideTabs = [
   { id: "altitude", label: "Altitude & Acclimatization", icon: Mountain },
   { id: "permits", label: "Permits & TIMS", icon: FileText },
   { id: "packing", label: "Packing Checklist", icon: Package },
   { id: "seasons", label: "Seasons & Weather", icon: Sun },
-  { id: "culture", label: "Teahouse & Sherpa Culture", icon: HeartHandshake },
+  { id: "culture", label: "Local Culture & Etiquette", icon: HeartHandshake },
   { id: "faq", label: "Trail FAQs", icon: HelpCircle }
 ];
 
@@ -54,7 +53,7 @@ const initialPackingList = [
       { id: "thermal-top", label: "2x Synthetic or merino wool thermal base layer tops", essential: true, checked: false },
       { id: "trek-shirts", label: "2x Lightweight, breathable long-sleeve hiking shirts (UPF 50+)", essential: true, checked: false },
       { id: "fleece", label: "1x Mid-layer fleece or Polartec grid pullover", essential: true, checked: false },
-      { id: "down-jacket", label: "High-loft down jacket (-15°C to -20°C rated, 700+ fill power)", essential: true, checked: false },
+      { id: "down-jacket", label: "Insulated jacket suitable for the expected conditions", essential: true, checked: false },
       { id: "hardshell", label: "Waterproof & windproof breathable Gore-Tex shell jacket", essential: true, checked: false }
     ]
   },
@@ -80,7 +79,7 @@ const initialPackingList = [
   {
     category: "Sleep & Packs",
     items: [
-      { id: "sleeping-bag", label: "4-Season sleeping bag (-15°C comfort rating) + silk liner", essential: true, checked: false },
+      { id: "sleeping-bag", label: "Sleeping bag suitable for the expected conditions, plus a liner if needed", essential: true, checked: false },
       { id: "daypack", label: "30L–35L Daypack with padded hip belt and rain cover", essential: true, checked: false },
       { id: "duffel", label: "80L–90L Heavy-duty water-resistant duffel bag (carried by porter)", essential: true, checked: false },
       { id: "trekking-poles", label: "Telescopic carbon or aluminum trekking poles with shock absorption", essential: true, checked: false }
@@ -93,7 +92,7 @@ const initialPackingList = [
       { id: "water-purification", label: "Water purification tablets or SteriPEN / filtration filter", essential: true, checked: false },
       { id: "headlamp", label: "High-lumen LED headlamp with extra lithium batteries (cold drains batteries)", essential: true, checked: false },
       { id: "powerbank", label: "10,000–20,000 mAh high-capacity rugged power bank", essential: true, checked: false },
-      { id: "medical-kit", label: "Personal med kit: Diamox (Acetazolamide), Ibuprofen, rehydration salts, blister pads (Compeed), Ciprofloxacin", essential: true, checked: false },
+      { id: "medical-kit", label: "Personal first-aid supplies and medications recommended by your healthcare professional", essential: true, checked: false },
       { id: "sunscreen", label: "High SPF 50+ mineral sunscreen and zinc oxide lip balm", essential: true, checked: false }
     ]
   }
@@ -102,17 +101,11 @@ const initialPackingList = [
 export function TrekkingGuidePage() {
   const [activeTab, setActiveTab] = useState("altitude");
   const [packingList, setPackingList] = useState(initialPackingList);
-  const guides = useGuides();
-
-  const altitudeRulesGuide = guides.find((g) => g.type === "rules" || g.id === "guide-altitude-rules");
-  const dynamicRules = altitudeRulesGuide?.rules || [
-    { id: "r1", title: "Never ascend with symptoms of AMS:", text: "If you have a persistent headache, nausea, or dizziness, you MUST stay at your current altitude until fully resolved." },
-    { id: "r2", title: "If symptoms worsen, descend immediately:", text: "Descending just 300 to 500 meters is often the single most life-saving intervention. Never wait until morning if symptoms escalate." },
-    { id: "r3", title: "Never leave a sick trekker alone:", text: "Always descend accompanied by an experienced Sherpa guide or fellow trekker." }
+  const altitudeReminders = [
+    { id: "r1", title: "Plan conservatively:", text: "Choose an itinerary with an appropriate pace and discuss altitude risks with a qualified healthcare professional before travel." },
+    { id: "r2", title: "Take symptoms seriously:", text: "Do not continue ascending when unwell. Seek help from a qualified guide and medical professional." },
+    { id: "r3", title: "Know how to get help:", text: "Before setting out, confirm local emergency contacts, communications, and evacuation arrangements for your route." }
   ];
-
-  const dynamicArticles = guides.filter((g) => g.category === activeTab && g.type === "article");
-
   const toggleItem = (catIndex, itemId) => {
     setPackingList((prev) =>
       prev.map((cat, idx) => {
@@ -142,7 +135,7 @@ export function TrekkingGuidePage() {
           <p className="eyebrow">Before you head to the mountains</p>
           <h1>A practical guide<br /><em>to trekking in Nepal.</em></h1>
           <p className="guide-hero-desc">
-            A few useful things to know before you go: how to plan for altitude, what to pack, how permits work, and what to expect on the trail.
+            General planning information about altitude, packing, permits, and trail conditions. Requirements and conditions change, so confirm current details with official sources and qualified professionals.
           </p>
           <div className="guide-hero-badges">
             <span><ShieldCheck size={16} /> Plan a steady ascent</span>
@@ -183,18 +176,16 @@ export function TrekkingGuidePage() {
               <span className="guide-tag">Altitude Health & Acclimatization</span>
               <h2>The Golden Rules of High Mountain Safety</h2>
               <p>
-                Above 3,000 meters (9,840 ft), the air contains fewer oxygen molecules per breath. 
-                Altitude sickness (AMS) does not care about your fitness level—it respects only patience, 
-                hydration, and sensible ascent profiles.
+                High altitude can affect travelers differently, regardless of fitness. Use an itinerary suited to your experience and get individualized advice from a qualified healthcare professional.
               </p>
             </div>
 
             <div className="guide-alert-box">
               <div className="guide-alert-icon"><AlertTriangle size={28} /></div>
               <div className="guide-alert-text">
-                <h3>{altitudeRulesGuide?.title || "The 3 Ironclad Rules of High Altitude"}</h3>
+                <h3>General planning reminders</h3>
                 <ul>
-                  {dynamicRules.map((rule, idx) => (
+                  {altitudeReminders.map((rule, idx) => (
                     <li key={rule.id || idx}>
                       <strong>{rule.title} </strong>
                       <span>{rule.text}</span>
@@ -207,51 +198,36 @@ export function TrekkingGuidePage() {
             <div className="guide-cards-grid">
               <article className="guide-feature-card">
                 <span className="card-num">01</span>
-                <h3>"Bistarai, Bistarai" — Pace is Everything</h3>
+                <h3>Allow time to adjust</h3>
                 <p>
-                  In Nepali, "Bistarai" means slowly. Even if you feel bursting with energy on day 3, 
-                  keep your heart rate low and conversational. Your body needs every bit of metabolic energy 
-                  to produce new red blood cells.
+                  Choose a route and pace appropriate to your experience. Discuss acclimatization and any personal health concerns with a qualified healthcare professional before departure.
                 </p>
               </article>
 
               <article className="guide-feature-card">
                 <span className="card-num">02</span>
-                <h3>The 4-Liter Hydration Rule</h3>
+                <h3>Plan for food and water</h3>
                 <p>
-                  Cold high-altitude air is bone-dry; you lose significant moisture simply by breathing. 
-                  Aim for 4 liters of warm liquids daily—hot lemon honey tea, ginger water, and local garlic soup 
-                  (revered by Sherpas for stimulating circulation).
+                  Food and drinking-water access varies by route and season. Ask your operator what is available and how to treat water safely for your itinerary.
                 </p>
               </article>
 
               <article className="guide-feature-card">
                 <span className="card-num">03</span>
-                <h3>Climb High, Sleep Low</h3>
+                <h3>Review the itinerary</h3>
                 <p>
-                  Our itineraries build in active acclimatization hikes (such as walking up to 3,880m at 
-                  Hotel Everest View and returning to sleep at 3,440m in Namche Bazaar). This triggers erythropoietin 
-                  production while letting you sleep with richer ambient oxygen.
+                  Check each day's elevation changes and planned rest days with a qualified guide or operator. The route catalog may not contain complete or medically reviewed advice.
                 </p>
               </article>
 
               <article className="guide-feature-card">
                 <span className="card-num">04</span>
-                <h3>Diamox (Acetazolamide) Insights</h3>
+                <h3>Medication questions</h3>
                 <p>
-                  Diamox helps your kidneys excrete bicarbonate, making your blood slightly more acidic 
-                  which signals your brain to breathe faster during sleep. Consult your travel doctor: 
-                  typical dose is 125mg twice daily starting 24h before reaching 3,000m.
+                  Do not start, stop, or change medication based on this guide. Ask a qualified healthcare professional about altitude-related risks and any medication before travel.
                 </p>
               </article>
 
-              {dynamicArticles.map((art, idx) => (
-                <article className="guide-feature-card" key={art.id || idx}>
-                  <span className="card-num">{(idx + 5).toString().padStart(2, "0")}</span>
-                  <h3>{art.title}</h3>
-                  <p>{art.content || art.summary}</p>
-                </article>
-              ))}
             </div>
 
             <div className="symptoms-comparison">
@@ -267,19 +243,19 @@ export function TrekkingGuidePage() {
                   </thead>
                   <tbody>
                     <tr>
-                      <td><strong>Mild AMS (Common)</strong></td>
-                      <td>Mild throbbing headache, slight fatigue, reduced appetite, restless sleep.</td>
-                      <td>Rest, hydrate, take Ibuprofen, do NOT ascend until symptoms clear.</td>
+                      <td><strong>Possible altitude illness</strong></td>
+                      <td>Symptoms can include headache, nausea, unusual fatigue, dizziness, or changes in coordination or breathing.</td>
+                      <td>Stop ascending and seek prompt help from a qualified guide and medical professional. This page is not a diagnostic tool.</td>
                     </tr>
                     <tr>
-                      <td><strong>HAPE (High Altitude Pulmonary Edema)</strong></td>
-                      <td>Persistent dry cough progressing to pink frothy phlegm, extreme breathlessness at rest, blue lips/nails.</td>
-                      <td><strong>CRITICAL EMERGENCY:</strong> Immediate descent, administer bottled oxygen, emergency helicopter evacuation.</td>
+                      <td><strong>Severe breathing symptoms</strong></td>
+                      <td>Severe or worsening breathing difficulty at rest can be an emergency.</td>
+                      <td><strong>Seek emergency assistance immediately.</strong> Follow qualified local responders' instructions.</td>
                     </tr>
                     <tr>
-                      <td><strong>HACE (High Altitude Cerebral Edema)</strong></td>
-                      <td>Loss of physical coordination (inability to walk heel-to-toe), severe confusion, hallucinations, irrational behavior.</td>
-                      <td><strong>CRITICAL EMERGENCY:</strong> Immediate descent with Gamow bag / oxygen and urgent evacuation.</td>
+                      <td><strong>Severe neurological symptoms</strong></td>
+                      <td>Confusion, loss of coordination, or a significant change in alertness can be an emergency.</td>
+                      <td><strong>Seek emergency assistance immediately.</strong> Follow qualified local responders' instructions.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -292,22 +268,19 @@ export function TrekkingGuidePage() {
         {activeTab === "permits" && (
           <Reveal className="guide-pane">
             <div className="guide-section-header">
-              <span className="guide-tag">Official Regulations · 2026 Policy</span>
-              <h2>Nepal Trekking Permits & Mandatory Guide Rules</h2>
+              <span className="guide-tag">Permit planning · verify current requirements</span>
+              <h2>Check requirements for your route</h2>
               <p>
-                Navigating Nepal’s permit system is easy when you understand how each conservation area 
-                is managed. Below is the official breakdown for all major regions.
+                Permit rules, fees, and guide requirements can change and may depend on nationality, route, and season. The information below is a planning checklist, not an official or current fee schedule.
               </p>
             </div>
 
             <div className="permits-summary-banner">
               <div className="banner-icon"><Info size={22} /></div>
               <div>
-                <h4>Mandatory Guide Regulation (Updated)</h4>
+                <h4>Confirm before departure</h4>
                 <p>
-                  Under Nepal Tourism Board regulations, foreign solo trekkers are required to be accompanied by a 
-                  licensed, government-certified trekking guide in national park and conservation areas. 
-                  All our expeditions include fully licensed Sherpa guides and comprehensive permit processing.
+                  Check the current requirements with the relevant government authority and your licensed local operator. Do not rely on this page to determine eligibility, required documents, guide rules, or permit costs.
                 </p>
               </div>
             </div>
@@ -316,74 +289,47 @@ export function TrekkingGuidePage() {
               <div className="permit-card">
                 <div className="permit-card-header">
                   <h3>Khumbu & Everest Region</h3>
-                  <span className="permit-price">$55 total</span>
+                  <span className="permit-price">Verify current fees</span>
                 </div>
                 <ul>
-                  <li><strong>Sagarmatha National Park Permit:</strong> NPR 3,000 (~$25) + 13% VAT</li>
-                  <li><strong>Khumbu Pasang Lhamu Rural Municipality Fee:</strong> NPR 2,000 (~$17)</li>
-                  <li><strong>TIMS Card:</strong> Replaced in Khumbu by local municipal entry cards</li>
-                  <li><em>Where to get:</em> Monjo check-post or Lukla airport entrance</li>
+                  <li>Confirm protected-area and local entry permits for your itinerary.</li>
+                  <li>Verify current fees, where permits are issued, and required documents.</li>
                 </ul>
               </div>
 
               <div className="permit-card">
                 <div className="permit-card-header">
                   <h3>Annapurna Conservation Area</h3>
-                  <span className="permit-price">$45 total</span>
+                  <span className="permit-price">Verify current fees</span>
                 </div>
                 <ul>
-                  <li><strong>ACAP (Annapurna Conservation Area Permit):</strong> NPR 3,000 (~$25)</li>
-                  <li><strong>TIMS Card (Green / Blue):</strong> NPR 2,000 (~$17)</li>
-                  <li><em>Where to get:</em> Nepal Tourism Board office in Kathmandu or Pokhara</li>
-                  <li><em>Required documents:</em> 4 passport photos & passport photocopy</li>
+                  <li>Confirm conservation-area and any route-specific permits.</li>
+                  <li>Verify current fees, application locations, and required documents.</li>
                 </ul>
               </div>
 
               <div className="permit-card">
                 <div className="permit-card-header">
                   <h3>Langtang National Park</h3>
-                  <span className="permit-price">$45 total</span>
+                  <span className="permit-price">Verify current fees</span>
                 </div>
                 <ul>
-                  <li><strong>Langtang National Park Entry:</strong> NPR 3,000 (~$25)</li>
-                  <li><strong>TIMS Card:</strong> NPR 2,000 (~$17)</li>
-                  <li><em>Where to get:</em> Dhunche military checkpoint or Kathmandu NTB</li>
-                  <li><em>Good for:</em> Langtang Valley, Gosainkunda, and Helambu trails</li>
+                  <li>Confirm national-park and any route-specific permits.</li>
+                  <li>Verify current fees, application locations, and required documents.</li>
                 </ul>
               </div>
 
               <div className="permit-card">
                 <div className="permit-card-header">
                   <h3>Manaslu Restricted Area</h3>
-                  <span className="permit-price">$160+ total</span>
+                  <span className="permit-price">Verify current fees</span>
                 </div>
                 <ul>
-                  <li><strong>Special Restricted Area Permit (RAP):</strong> $100/week (Autumn) or $75/week (Spring)</li>
-                  <li><strong>MCAP (Manaslu Conservation) & ACAP:</strong> NPR 3,000 each (~$50)</li>
-                  <li><em>Rule:</em> Must be booked through a registered Nepal agency with minimum 2 trekkers + licensed guide</li>
+                  <li>Check whether restricted-area permits or additional documentation apply.</li>
+                  <li>Confirm current eligibility and guide or operator requirements with the relevant authorities.</li>
                 </ul>
               </div>
 
-              {dynamicArticles.length > 0 && (
-                <div style={{ marginTop: "24px" }}>
-                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
-                    Additional Official Notices & Guidelines
-                  </h3>
-                  <div className="permits-grid">
-                    {dynamicArticles.map((art) => (
-                      <div key={art.id} className="permit-card" style={{ borderLeft: "4px solid #083c34" }}>
-                        <div className="permit-card-header">
-                          <h3>{art.title}</h3>
-                          <span className="permit-price">Advisory</span>
-                        </div>
-                        <p style={{ marginTop: "8px", fontSize: "0.93rem", color: "#475569", lineHeight: "1.6" }}>
-                          {art.content || art.summary}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </Reveal>
         )}
@@ -443,11 +389,9 @@ export function TrekkingGuidePage() {
             <div className="porter-weight-note">
               <Package size={20} />
               <div>
-                <h4>Porter Weight Limit Reminder (12–15 kg per trekker)</h4>
+                <h4>Confirm baggage arrangements</h4>
                 <p>
-                  We adhere strictly to the International Porter Protection Group (IPPG) guidelines. 
-                  One porter carries gear for two trekkers up to a maximum total of 25–30 kg (meaning 12–15 kg / 26–33 lbs 
-                  for your main duffel). Your daily backpack should only weigh 5–7 kg with water, camera, and warm layers.
+                  Porter services, baggage limits, and equipment arrangements vary by operator and route. Confirm the current policy with your operator and pack accordingly.
                 </p>
               </div>
             </div>
@@ -458,95 +402,76 @@ export function TrekkingGuidePage() {
         {activeTab === "seasons" && (
           <Reveal className="guide-pane">
             <div className="guide-section-header">
-              <span className="guide-tag">Weather Windows</span>
-              <h2>Best Himalayan Seasons: When to Walk</h2>
+              <span className="guide-tag">Seasonal patterns · conditions vary</span>
+              <h2>Plan around the season and route</h2>
               <p>
-                Nepal experiences distinct mountain climatic windows. Choosing the right month 
-                determines your views, temperatures, and trail crowd levels.
+                Weather depends on elevation, route, and current conditions. Treat these seasonal notes as general context, and check local forecasts and route conditions before setting out.
               </p>
             </div>
 
             <div className="seasons-grid">
               <div className="season-card is-highlighted">
-                <div className="season-badge">Top Recommendation</div>
+                <div className="season-badge">Seasonal pattern</div>
                 <div className="season-title-row">
-                  <h3>Autumn (Late Sept – November)</h3>
-                  <span>Peak Clarity</span>
+                  <h3>Autumn</h3>
+                  <span>Conditions vary</span>
                 </div>
                 <p className="season-desc">
-                  Post-monsoon skies are washed crystal-clear. Outstanding mountain panoramas, warm pleasant daytime temperatures (14°C to 18°C), and reliable flight windows into Lukla and Pokhara.
+                  Some routes may see clearer conditions after the monsoon, but visibility, temperatures, and transport can change quickly.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Day Temp:</strong> 12°C to 18°C</div>
-                  <div><strong>Night at 5000m:</strong> -10°C to -15°C</div>
-                  <div><strong>Trail Vibe:</strong> Vibrant & social</div>
+                  <div><strong>Weather:</strong> Check the current forecast</div>
+                  <div><strong>Transport:</strong> Confirm schedules locally</div>
+                  <div><strong>Trail conditions:</strong> Vary by route</div>
                 </div>
               </div>
 
               <div className="season-card is-highlighted">
-                <div className="season-badge">Wildflower Bloom</div>
+                <div className="season-badge">Seasonal pattern</div>
                 <div className="season-title-row">
-                  <h3>Spring (March – May)</h3>
-                  <span>Rhododendrons & Longer Days</span>
+                  <h3>Spring</h3>
+                  <span>Conditions vary</span>
                 </div>
                 <p className="season-desc">
-                  Hillsides burst into vibrant red, pink, and white rhododendron blossoms. Warmer mornings and longer daylight hours. You will also see mountaineering climbing teams setting up at Everest Base Camp.
+                  Some lower-elevation areas may have seasonal blooms. Conditions and visibility vary across regions and from year to year.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Day Temp:</strong> 15°C to 20°C</div>
-                  <div><strong>Night at 5000m:</strong> -8°C to -12°C</div>
-                  <div><strong>Trail Vibe:</strong> Lush & colorful</div>
+                  <div><strong>Weather:</strong> Check the current forecast</div>
+                  <div><strong>Daylight:</strong> Confirm local conditions</div>
+                  <div><strong>Trail conditions:</strong> Vary by route</div>
                 </div>
               </div>
 
               <div className="season-card">
                 <div className="season-title-row">
-                  <h3>Winter (December – February)</h3>
-                  <span>Crisp Cold & Solitude</span>
+                  <h3>Winter</h3>
+                  <span>Cold-weather planning</span>
                 </div>
                 <p className="season-desc">
-                  Deep blue skies and virtually empty trails. However, high passes like Thorong La and Larkya La can close under heavy snow, and high lodge dining halls are freezing after sunset.
+                  Cold, snow, and closures may affect access, services, and safety. Check conditions with local authorities and your operator before travel.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Day Temp:</strong> 5°C to 10°C</div>
-                  <div><strong>Night at 5000m:</strong> -20°C to -25°C</div>
-                  <div><strong>Trail Vibe:</strong> Silent solitude</div>
+                  <div><strong>Weather:</strong> Prepare for cold conditions</div>
+                  <div><strong>Access:</strong> Confirm route status</div>
+                  <div><strong>Services:</strong> Check availability</div>
                 </div>
               </div>
 
               <div className="season-card">
                 <div className="season-title-row">
-                  <h3>Monsoon (June – August)</h3>
-                  <span>Rainshadow Journeys</span>
+                  <h3>Monsoon</h3>
+                  <span>Rain and route planning</span>
                 </div>
                 <p className="season-desc">
-                  Lower trails are lush but subject to mud, heavy rain, and leeches. However, Upper Mustang and Dolpo sit in the Himalayan rainshadow beyond the Annapurnas, making summer their ideal season!
+                  Rain can affect trails, transport, and visibility. Conditions vary by region; verify access and weather for your specific route.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Day Temp:</strong> 20°C to 26°C</div>
-                  <div><strong>Rain:</strong> Heavy in south, zero in Mustang</div>
-                  <div><strong>Trail Vibe:</strong> Agricultural life</div>
+                  <div><strong>Weather:</strong> Check the current forecast</div>
+                  <div><strong>Access:</strong> Confirm route status</div>
+                  <div><strong>Trail conditions:</strong> Vary by route</div>
                 </div>
               </div>
 
-              {dynamicArticles.length > 0 && (
-                <div style={{ marginTop: "24px" }}>
-                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
-                    Seasonal Advisories & Micro-Climate Guides
-                  </h3>
-                  <div className="seasons-grid">
-                    {dynamicArticles.map((art) => (
-                      <div key={art.id} className="season-card">
-                        <div className="season-title-row">
-                          <h3>{art.title}</h3>
-                          <span>Trail Advisory</span>
-                        </div>
-                        <p className="season-desc">{art.content || art.summary}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </Reveal>
         )}
@@ -567,71 +492,45 @@ export function TrekkingGuidePage() {
             <div className="culture-story-block">
               <div className="culture-story-quote">
                 <p>
-                  "In the evening, when the wind howls against the lodge tin roof, we gather around 
-                  the bukhari wood stove. The smoke smells of juniper, the tea kettle whistles, 
-                  and strangers from six continents become friends over steaming plates of Dal Bhat."
+                  Learn about local customs from people in the communities you visit, and follow their guidance with respect.
                 </p>
-                <small>— Ang Norbu Sherpa, Senior Lead Guide</small>
+                <small>Respectful travel starts with listening.</small>
               </div>
             </div>
 
             <div className="guide-cards-grid">
               <article className="guide-feature-card">
                 <div className="feature-icon"><Utensils size={20} /></div>
-                <h3>The Power of Dal Bhat</h3>
+                <h3>Food and local services</h3>
                 <p>
-                  "Dal Bhat Power 24 Hour!" Steaming mountain rice, slow-simmered spiced lentil soup, 
-                  mustard greens, and potato curry. Teahouses always offer complimentary refills until 
-                  you are completely full. It is the purest, healthiest fuel for walking.
+                  Menus, ingredients, prices, and availability vary. Ask accommodation providers about meals and any dietary needs before relying on a particular option.
                 </p>
               </article>
 
               <article className="guide-feature-card">
                 <div className="feature-icon"><Compass size={20} /></div>
-                <h3>Clockwise Around Sacred Sites</h3>
+                <h3>Respect sacred places</h3>
                 <p>
-                  Always pass Buddhist chortens, stupas, and carved mani stone walls keeping them on your 
-                  <strong> right-hand side</strong> (walking clockwise). Spin prayer wheels clockwise 
-                  while whispering <em>"Om Mani Padme Hum"</em>.
+                  Ask local hosts or guides about customs at religious and cultural sites. Follow posted guidance and avoid touching or photographing objects or people without permission.
                 </p>
               </article>
 
               <article className="guide-feature-card">
                 <div className="feature-icon"><HeartHandshake size={20} /></div>
-                <h3>Namaste & Tashi Delek</h3>
+                <h3>Greet people thoughtfully</h3>
                 <p>
-                  Greet locals with palms pressed together at chest height and a warm "Namaste" (in Hindu and middle hills) 
-                  or "Tashi Delek" (in Tibetan Buddhist high mountain communities like Khumbu and Manang). 
-                  A warm smile opens every door.
+                  Greetings and customs differ between communities. Be courteous, listen, and follow the lead of local people rather than assuming one practice applies everywhere.
                 </p>
               </article>
 
               <article className="guide-feature-card">
                 <div className="feature-icon"><Users size={20} /></div>
-                <h3>Fair Porter Treatment & Tipping</h3>
+                <h3>Ask about fair working practices</h3>
                 <p>
-                  Porters are the unsung champions of the Himalayas. Always greet them respectfully on the path, 
-                  step into the mountain side (never the cliff edge!) to let yak trains pass, and budget a 
-                  customary tip of ~$15–$20/day total split among your trekking group.
+                  Ask your operator about porter employment, pay, insurance, and luggage limits. Follow local trail guidance and make room for other travelers and pack animals where it is safe to do so.
                 </p>
               </article>
 
-              {dynamicArticles.length > 0 && (
-                <div style={{ marginTop: "24px", gridColumn: "1 / -1" }}>
-                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
-                    Community & Monastery Etiquette Guides
-                  </h3>
-                  <div className="guide-cards-grid">
-                    {dynamicArticles.map((art) => (
-                      <article className="guide-feature-card" key={art.id}>
-                        <div className="feature-icon"><HeartHandshake size={20} /></div>
-                        <h3>{art.title}</h3>
-                        <p>{art.content || art.summary}</p>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </Reveal>
         )}
@@ -642,71 +541,45 @@ export function TrekkingGuidePage() {
             <div className="guide-section-header">
               <span className="guide-tag">Common Inquiries</span>
               <h2>Frequently Asked Trail Questions</h2>
-              <p>Everything you were curious to ask before booking your flights.</p>
+              <p>These general answers are not route-specific. Confirm details with your operator before travel.</p>
             </div>
 
             <div className="guide-faq-accordion">
               <details className="guide-faq-item" open>
-                <summary>How fit do I really need to be for Everest Base Camp or Annapurna?</summary>
+                <summary>How should I prepare physically?</summary>
                 <p>
-                  You do not need to be a marathon runner or elite athlete. You need good cardiovascular stamina 
-                  and the mental determination to walk 5 to 7 hours uphill daily with a daypack. Regular stair climbing, 
-                  weekend trail walking, and leg endurance exercises 2–3 months before your trip are ideal preparation.
+                  Fitness needs depend on the route, duration, and conditions. Review the published trek details and ask the operator or a qualified healthcare professional how to prepare for your circumstances.
                 </p>
               </details>
 
               <details className="guide-faq-item">
                 <summary>Can I charge my phone, camera batteries, and power bank on the trail?</summary>
                 <p>
-                  Yes, almost all teahouse lodges have solar or hydroelectric power in the dining hall. 
-                  Charging is usually charged at NPR 200–500 ($2–$4) per full charge, and prices increase with elevation. 
-                  We strongly recommend bringing a 20,000 mAh power bank and keeping batteries inside your sleeping bag at night 
-                  to prevent freezing drains.
+                  Charging access and fees vary by lodge and route. Confirm availability locally and ask your operator what backup power is appropriate for your trip.
                 </p>
               </details>
 
               <details className="guide-faq-item">
                 <summary>Is there internet / Wi-Fi available on the treks?</summary>
                 <p>
-                  Yes! In the Khumbu region, AirDijital and Everest Link provide prepaid Wi-Fi cards ($5 to $10 for 10–20 GB) 
-                  that work well up to Gorak Shep. In Annapurna, most teahouses offer Wi-Fi for a modest fee ($2–$3). 
-                  Ncell and Nepal Telecom (NTC) SIM cards purchased in Kathmandu also provide 4G data along lower valleys.
+                  Coverage, providers, and service availability vary by region and can change. Do not rely on mobile or internet access for emergency communication; confirm current options for your route.
                 </p>
               </details>
 
               <details className="guide-faq-item">
                 <summary>What happens if I get sick or injured high on the mountain?</summary>
                 <p>
-                  All our lead Sherpa guides carry satellite communication devices and first aid kits with pulse oximeters. 
-                  If altitude sickness or injury requires evacuation, we coordinate immediate helicopter rescue directly to 
-                  an accredited international hospital in Kathmandu. This is why having emergency medical helicopter insurance 
-                  covering up to 6,000 meters is mandatory.
+                  Emergency response and evacuation options depend on location, weather, and available services. Ask your operator about emergency procedures and review suitable travel insurance with your insurer before departure.
                 </p>
               </details>
 
               <details className="guide-faq-item">
                 <summary>How are bathrooms and showers in the teahouses?</summary>
                 <p>
-                  In lower elevations (Namche, Ulleri, Chhomrong), many teahouses now offer rooms with attached bathrooms 
-                  and gas-heated hot showers. Above 4,000m, bathrooms are shared (often squat toilets, kept clean), 
-                  and hot showers are provided as hot water bucket baths for $3–$5. Above 4,500m, we advise using wet wipes 
-                  instead of showering to avoid catching chills!
+                  Facilities vary by accommodation and route. Ask your operator or lodging provider about bathroom, shower, and accessibility arrangements.
                 </p>
               </details>
 
-              {dynamicArticles.length > 0 && (
-                <div style={{ marginTop: "24px" }}>
-                  <h3 style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1e293b", marginBottom: "16px" }}>
-                    Additional Trail Inquiries & Updates
-                  </h3>
-                  {dynamicArticles.map((art) => (
-                    <details className="guide-faq-item" key={art.id} open>
-                      <summary>{art.title}</summary>
-                      <p>{art.content || art.summary}</p>
-                    </details>
-                  ))}
-                </div>
-              )}
             </div>
           </Reveal>
         )}

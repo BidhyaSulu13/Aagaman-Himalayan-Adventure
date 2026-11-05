@@ -21,6 +21,11 @@ import {
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { api } from "../../services/api.js";
+import {
+  getDepartureAvailableSeats,
+  getDepartureStatus,
+  isDepartureBookable,
+} from "../../services/departures.js";
 import { NotFoundPage } from "../public/MiscPages.jsx";
 import "./TripBooking.css";
 
@@ -86,11 +91,22 @@ export function BookingPage() {
           setTrek(res.trek);
           if (Array.isArray(res.departures)) {
             setDepartures(res.departures);
-            if (res.departures.length > 0 && !searchParams.get("date")) {
-              setSelectedDepartureId(res.departures[0]._id);
+            const bookableDepartures = res.departures.filter(isDepartureBookable);
+            const requestedDeparture = bookableDepartures.find(
+              (departure) => departure._id === searchParams.get("departureId")
+            );
+            const matchingDate = bookableDepartures.find(
+              (departure) => new Date(departure.startDate).toISOString().slice(0, 10) === searchParams.get("date")
+            );
+            const initialDeparture = requestedDeparture || matchingDate ||
+              (!searchParams.get("date") ? bookableDepartures[0] : null);
+            if (initialDeparture) {
+              setSelectedDepartureId(initialDeparture._id);
               setSelectedDate(
-                new Date(res.departures[0].startDate).toISOString().split("T")[0]
+                new Date(initialDeparture.startDate).toISOString().split("T")[0]
               );
+              const seats = Number(initialDeparture.availableSeats ?? initialDeparture.capacity - (initialDeparture.bookedCount || 0));
+              setTravelers((current) => Math.min(current, seats));
             }
           }
         }
@@ -138,8 +154,17 @@ export function BookingPage() {
 
   if (!trek) return <NotFoundPage />;
 
+  const bookableDepartures = departures.filter(isDepartureBookable);
+  const publishedDepartures = departures.filter((departure) => departure.published !== false);
+  const selectedDeparture = bookableDepartures.find(
+    (departure) => departure._id === selectedDepartureId
+  );
+  const selectedAvailableSeats = selectedDeparture
+    ? getDepartureAvailableSeats(selectedDeparture)
+    : 0;
+
   // Dynamic Tiered Price Calculation
-  const baseRate = trek.price || 1890;
+  const baseRate = selectedDeparture?.price ?? trek.price ?? 1890;
   let paxMultiplier = 1.0;
   if (travelers === 1) paxMultiplier = 1.2;
   else if (travelers <= 4) paxMultiplier = 1.1;
@@ -175,6 +200,10 @@ export function BookingPage() {
 
     if (!agreedTerms) {
       notify("Please accept the booking terms and cancellation policy.");
+      return;
+    }
+    if (!selectedDepartureId || !bookableDepartures.some((departure) => departure._id === selectedDepartureId)) {
+      notify("Please select an available fixed departure date.");
       return;
     }
 
@@ -243,7 +272,7 @@ export function BookingPage() {
             Expedition Reservation Received
           </h2>
           <p style={{ color: "#64748b", margin: "0 auto 20px", maxWidth: "520px", textAlign: "center", lineHeight: 1.6 }}>
-            Your booking request has been submitted to the Agaaman expedition desk. An official confirmation invoice and payment gateway link are being dispatched to your email.
+            Your booking request has been submitted to the Agaaman expedition desk, and a summary has been sent to your email. The team will contact you with confirmation and payment instructions after reviewing your request.
           </p>
 
           <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginBottom: "28px", flexWrap: "wrap" }}>
@@ -315,6 +344,7 @@ export function BookingPage() {
                   paymentStatus: b.paymentStatus,
                   trekTitle: b.trek?.title || trek.title,
                   trekSlug: b.trek?.slug || trek.slug,
+                  email: travelerInfo.email,
                   startDate: b.departure?.startDate || selectedDate,
                   numberOfTravelers: b.numberOfTravelers || travelers,
                   totalAmount: b.totalAmount || grandTotal,
@@ -397,72 +427,91 @@ export function BookingPage() {
               <span className="step-num-bubble">1</span>
               <div>
                 <h2>Expedition Dates & Participants</h2>
-                <p>Choose an upcoming fixed departure or set your custom starting date.</p>
+                <p>Choose an upcoming fixed departure published by our team.</p>
               </div>
             </div>
 
             <div className="book-form-grid">
+              <div className="book-field full">
+                <label>1. Choose a fixed departure date *</label>
+                <p style={{ margin: "0 0 8px", color: "#64748b", fontSize: "13px" }}>
+                  Select a date with seats available. The number of participants is limited to the remaining seats.
+                </p>
+                {publishedDepartures.length > 0 ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "10px" }}>
+                    {publishedDepartures.map((departure) => {
+                      const availableSeats = getDepartureAvailableSeats(departure);
+                      const canBook = isDepartureBookable(departure);
+                      const selected = departure._id === selectedDepartureId;
+                      return (
+                        <button
+                          key={departure._id}
+                          type="button"
+                          disabled={!canBook}
+                          aria-pressed={selected}
+                          onClick={() => {
+                            setSelectedDepartureId(departure._id);
+                            setSelectedDate(new Date(departure.startDate).toISOString().slice(0, 10));
+                            setTravelers((current) => Math.min(current, availableSeats));
+                          }}
+                          style={{
+                            display: "grid",
+                            gap: "5px",
+                            padding: "12px",
+                            textAlign: "left",
+                            font: "inherit",
+                            color: canBook ? "#0f172a" : "#64748b",
+                            background: selected ? "#fff7ed" : canBook ? "#ffffff" : "#f8fafc",
+                            border: `1px solid ${selected ? "#ea580c" : "#cbd5e1"}`,
+                            borderRadius: "8px",
+                            cursor: canBook ? "pointer" : "not-allowed",
+                            opacity: canBook ? 1 : 0.72,
+                          }}
+                        >
+                          <strong>{new Date(departure.startDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</strong>
+                          <span style={{ fontSize: "12px" }}>
+                            Return: {new Date(departure.endDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                          <span style={{ fontSize: "12px" }}>
+                            {canBook
+                              ? `${availableSeats} of ${departure.capacity} seats available`
+                              : availableSeats === 0
+                                ? "Fully booked · unavailable"
+                                : getDepartureStatus(departure)}
+                          </span>
+                          <span style={{ color: "#c2410c", fontWeight: 700 }}>
+                            ${Number(departure.price).toLocaleString()} per person
+                          </span>
+                          {departure.minGroupSize > 1 && (
+                            <span style={{ fontSize: "12px" }}>Minimum group: {departure.minGroupSize}</span>
+                          )}
+                          {selected && <span style={{ color: "#c2410c", fontSize: "12px", fontWeight: 700 }}>Selected</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p role="status">There are no published departures available right now. Please contact our team about future dates.</p>
+                )}
+              </div>
               <div className="book-field">
-                <label>Number of Participants (1–20) *</label>
+                <label htmlFor="booking-participant-count">2. Number of Participants *</label>
                 <select
+                  id="booking-participant-count"
                   value={travelers}
-                  onChange={(e) => setTravelers(Number(e.target.value))}
+                  onChange={(event) => setTravelers(Number(event.target.value))}
+                  disabled={!selectedDeparture}
                   required
                 >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20].map((num) => (
+                  {!selectedDeparture && <option value={travelers}>Choose a departure first</option>}
+                  {Array.from({ length: Math.min(20, selectedAvailableSeats) }, (_, index) => index + 1).map((num) => (
                     <option key={num} value={num}>
-                      {num} {num === 1 ? "Solo Trekker" : "Trekkers"}
-                      {num >= 5 ? " (Tiered Group Discount Applied)" : ""}
+                      {num} {num === 1 ? "traveler" : "travelers"}
+                      {num >= 5 ? " (group discount)" : ""}
                     </option>
                   ))}
                 </select>
               </div>
-
-              <div className="book-field">
-                <label>Departure Date *</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    setSelectedDepartureId("");
-                  }}
-                  required
-                />
-              </div>
-
-              {departures.length > 0 && (
-                <div className="book-field full">
-                  <label>Or Join Scheduled Guaranteed Departure:</label>
-                  <select
-                    value={selectedDepartureId}
-                    onChange={(e) => {
-                      const dep = departures.find((d) => d._id === e.target.value);
-                      if (dep) {
-                        setSelectedDepartureId(dep._id);
-                        setSelectedDate(
-                          new Date(dep.startDate).toISOString().split("T")[0]
-                        );
-                      } else {
-                        setSelectedDepartureId("");
-                      }
-                    }}
-                  >
-                    <option value="">-- Custom Selected Date ({selectedDate}) --</option>
-                    {departures.map((d) => {
-                      const seatsLeft = Math.max(0, d.capacity - (d.bookedCount || 0));
-                      return (
-                        <option key={d._id} value={d._id}>
-                          {new Date(d.startDate).toDateString()} to{" "}
-                          {new Date(d.endDate).toDateString()} · {d.status} (${d.price}/pax ·{" "}
-                          {seatsLeft} seats remaining)
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              )}
             </div>
           </div>
 

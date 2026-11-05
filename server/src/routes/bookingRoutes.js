@@ -13,7 +13,7 @@ import { optionalAuth, protect, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
-router.post("/", optionalAuth, createBooking);
+router.post("/", protect, createBooking);
 router.get("/my", protect, getMyBookings);
 router.get("/:id", optionalAuth, getBookingById);
 router.post("/:id/cancel", optionalAuth, cancelBookingRequest);

@@ -16,6 +16,7 @@ import {
   Eye,
   FileText,
   Filter,
+  Heart,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -43,6 +44,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { api } from "../../services/api.js";
 import { dataStore } from "../../services/dataStore.js";
+import { getDepartureAvailableSeats, getDepartureStatus } from "../../services/departures.js";
 import "./AdminDashboard.css";
 
 function hasDepartureEnded(endDate) {
@@ -59,7 +61,7 @@ export function AdminPage() {
   const { tab } = useParams();
 
   // Validate active sub-route or default to dashboard
-  const validTabs = ["dashboard", "treks", "regions", "destinations", "departures", "bookings", "booking", "contacts", "users", "content", "guides", "settings"];
+  const validTabs = ["dashboard", "treks", "regions", "destinations", "departures", "bookings", "booking", "favorites", "contacts", "users", "content", "guides", "settings"];
   const activeTab = tab === "booking" ? "bookings" : validTabs.includes(tab) ? tab : "dashboard";
   const [contentSubTab, setContentSubTab] = useState("articles"); // "articles" | "reviews"
 
@@ -86,7 +88,14 @@ export function AdminPage() {
   const [regionsList, setRegionsList] = useState(() => dataStore.getRegions());
   const [destinationsList, setDestinationsList] = useState(() => dataStore.getDestinations());
   const [departuresList, setDeparturesList] = useState([]);
+  const [departuresLoading, setDeparturesLoading] = useState(false);
+  const [departureLoadError, setDepartureLoadError] = useState("");
+  const [departureLoadNotice, setDepartureLoadNotice] = useState("");
+  const [departureSummary, setDepartureSummary] = useState(null);
   const [bookingsList, setBookingsList] = useState([]);
+  const [favoritesList, setFavoritesList] = useState([]);
+  const [favoritesTotal, setFavoritesTotal] = useState(0);
+  const [favoritesError, setFavoritesError] = useState("");
   const [contactMessagesList, setContactMessagesList] = useState([]);
   const [contactMessagesError, setContactMessagesError] = useState("");
   const [contactMessagesLoading, setContactMessagesLoading] = useState(true);
@@ -208,11 +217,18 @@ export function AdminPage() {
     trekSlug: "",
     startDate: "",
     endDate: "",
+    bookingClosingDate: "",
     price: 0,
     originalPrice: "",
     capacity: 12,
+    minGroupSize: 1,
     status: "Available",
+    published: true,
   });
+  const [departureSearch, setDepartureSearch] = useState("");
+  const [departureStatusFilter, setDepartureStatusFilter] = useState("all");
+  const [departureDateFrom, setDepartureDateFrom] = useState("");
+  const [departureDateTo, setDepartureDateTo] = useState("");
 
   // Modern Confirmation Modal
   const [confirmModal, setConfirmModal] = useState({
@@ -262,6 +278,26 @@ export function AdminPage() {
   // Trek search & archive filter states
   const [trekSearch, setTrekSearch] = useState("");
   const [trekArchiveFilter, setTrekArchiveFilter] = useState("all");
+
+  const loadDepartures = async () => {
+    setDeparturesLoading(true);
+    setDepartureLoadError("");
+    setDepartureLoadNotice("");
+    try {
+      const response = await api.departures.getAdminAll({ upcoming: "false" });
+      if (!response.success || !Array.isArray(response.departures)) {
+        throw new Error("The departure schedule could not be loaded.");
+      }
+      setDeparturesList(response.departures);
+      if (response.adminFallback) {
+        setDepartureLoadNotice("Showing published departures. Restart the API server to load draft schedules.");
+      }
+    } catch (error) {
+      setDepartureLoadError(error.message || "The departure schedule could not be loaded.");
+    } finally {
+      setDeparturesLoading(false);
+    }
+  };
 
   // Load backend and live data
   const loadDashboardData = async () => {
@@ -355,14 +391,14 @@ export function AdminPage() {
         });
 
       // 4. Departures
+      loadDepartures();
+
       api.departures
-        .getAll({ upcoming: "false" })
+        .getSummary()
         .then((res) => {
-          if (res.success && res.departures) setDeparturesList(res.departures);
+          if (res.success && res.summary) setDepartureSummary(res.summary);
         })
-        .catch(() => {
-          setDeparturesList(dataStore.getDepartures());
-        });
+        .catch(() => setDepartureSummary(null));
 
       // 5. Bookings
       api.bookings
@@ -372,6 +408,21 @@ export function AdminPage() {
         })
         .catch(() => {
           setBookingsList(dataStore.getBookings());
+        });
+
+      api.favorites
+        .getAdminAll()
+        .then((res) => {
+          if (!res.success || !Array.isArray(res.favorites)) {
+            throw new Error("The favorites response was invalid.");
+          }
+          setFavoritesList(res.favorites);
+          setFavoritesTotal(Number(res.totalSavedTreks) || 0);
+          setFavoritesError("");
+        })
+        .catch((error) => {
+          setFavoritesList([]);
+          setFavoritesError(error.message || "Unable to load traveler favorites.");
         });
 
       setContactMessagesLoading(true);
@@ -432,6 +483,12 @@ export function AdminPage() {
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && user && isAdmin) {
+      loadDepartures();
+    }
+  }, [authLoading, user, isAdmin]);
 
   // ── NAVIGATION SUB-ROUTE SWITCHER ──
   const handleSelectTab = (tabKey) => {
@@ -1051,10 +1108,13 @@ export function AdminPage() {
       trekSlug: treksList[0]?.slug || "",
       startDate: "",
       endDate: "",
+      bookingClosingDate: "",
       price: Number(treksList[0]?.price || 0),
       originalPrice: "",
       capacity: 12,
+      minGroupSize: 1,
       status: "Available",
+      published: true,
     });
     setDepModalOpen(true);
   };
@@ -1065,10 +1125,15 @@ export function AdminPage() {
       trekSlug: departure.trek?.slug || departure.trekSlug || "",
       startDate: departure.startDate ? new Date(departure.startDate).toISOString().slice(0, 10) : "",
       endDate: departure.endDate ? new Date(departure.endDate).toISOString().slice(0, 10) : "",
+      bookingClosingDate: departure.bookingClosingDate
+        ? new Date(departure.bookingClosingDate).toISOString().slice(0, 10)
+        : "",
       price: Number(departure.price || 0),
       originalPrice: departure.originalPrice ?? "",
       capacity: Number(departure.capacity || 1),
+      minGroupSize: Number(departure.minGroupSize || 1),
       status: departure.status || "Available",
+      published: departure.published !== false,
     });
     setDepModalOpen(true);
   };
@@ -1079,8 +1144,10 @@ export function AdminPage() {
       const payload = {
         ...depForm,
         capacity: Number(depForm.capacity),
+        minGroupSize: Number(depForm.minGroupSize),
         price: Number(depForm.price),
         originalPrice: depForm.originalPrice === "" ? null : Number(depForm.originalPrice),
+        bookingClosingDate: depForm.bookingClosingDate || null,
       };
       if (editingDeparture?._id) {
         await api.departures.update(editingDeparture._id, payload);
@@ -1097,6 +1164,36 @@ export function AdminPage() {
     setDepModalOpen(false);
     setEditingDeparture(null);
     loadDashboardData();
+  };
+
+  const handleDepartureUpdate = async (departure, changes, actionLabel) => {
+    try {
+      const response = await api.departures.update(departure._id || departure.id, changes);
+      const notifications = response.notifications;
+      notify(
+        actionLabel === "cancelled" && notifications
+          ? notifications.failed === null
+            ? "Departure cancelled. Notification delivery could not be verified; check the server logs."
+            : `Departure cancelled. ${notifications.sent} traveler notification(s) sent${notifications.failed ? `; ${notifications.failed} failed` : ""}.`
+          : `Departure ${actionLabel}.`
+      );
+      loadDashboardData();
+    } catch (error) {
+      notify(error.message || `Unable to ${actionLabel.toLowerCase()} departure.`);
+    }
+  };
+
+  const handleCancelDeparture = (departure) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancel this departure?",
+      message: "The departure will no longer accept new bookings. Its bookings and history will be preserved.",
+      confirmLabel: "Cancel Departure",
+      onConfirm: async () => {
+        await handleDepartureUpdate(departure, { status: "Cancelled" }, "cancelled");
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const handleDeleteDeparture = (id) => {
@@ -1390,6 +1487,21 @@ export function AdminPage() {
     return null;
   }
 
+  const filteredDepartures = departuresList.filter((departure) => {
+    const trekName = departure.trek?.title || departure.trekTitle || departure.trekSlug || "";
+    const date = new Date(departure.startDate);
+    const from = departureDateFrom ? new Date(`${departureDateFrom}T00:00:00.000Z`) : null;
+    const to = departureDateTo ? new Date(`${departureDateTo}T23:59:59.999Z`) : null;
+    return (
+      (!departureSearch || trekName.toLowerCase().includes(departureSearch.trim().toLowerCase())) &&
+      (!from || date >= from) &&
+      (!to || date <= to) &&
+      (departureStatusFilter === "all" ||
+        getDepartureStatus(departure) === departureStatusFilter ||
+        departure.status === departureStatusFilter)
+    );
+  });
+
   return (
     <div className="adm-layout">
       {/* ════════════════════════════════════════════
@@ -1509,6 +1621,18 @@ export function AdminPage() {
             <span className={`adm-badge-count${stats.pendingBookings > 0 ? " has-pending" : ""}`}>
               {bookingsList.length}
             </span>
+          </button>
+
+          <button
+            type="button"
+            className={`adm-nav-item${activeTab === "favorites" ? " is-active" : ""}`}
+            onClick={() => handleSelectTab("favorites")}
+          >
+            <div className="adm-nav-item-left">
+              <Heart size={18} />
+              <span>Traveler Favorites</span>
+            </div>
+            <span className="adm-badge-count">{favoritesTotal}</span>
           </button>
 
           <button
@@ -1675,6 +1799,67 @@ export function AdminPage() {
                     <Users size={22} />
                   </div>
                 </div>
+              </div>
+
+              <div className="adm-card" style={{ marginBottom: "28px" }}>
+                <div className="adm-card-header">
+                  <h3>Fixed Departure Overview</h3>
+                  <button type="button" className="adm-btn-ghost" onClick={() => handleSelectTab("departures")}>
+                    Manage Departures →
+                  </button>
+                </div>
+                {departureSummary ? (
+                  <>
+                    <div className="adm-metrics-grid">
+                      {[
+                        ["Upcoming", departureSummary.totalUpcoming],
+                        ["Open", departureSummary.open],
+                        ["Fully Booked", departureSummary.fullyBooked],
+                        ["Seats Booked", departureSummary.totalBookedSeats],
+                        ["Seats Remaining", departureSummary.remainingSeats],
+                        ["Completed", departureSummary.completed],
+                        ["Cancelled", departureSummary.cancelled],
+                      ].map(([label, value]) => (
+                        <div className="adm-metric-card" key={label}>
+                          <div className="adm-metric-info">
+                            <span className="adm-metric-label">{label}</span>
+                            <span className="adm-metric-value">{Number(value || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="adm-metric-icon blue"><Calendar size={20} /></div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {departureSummary.lowDepartureTreks?.length > 0 && (
+                      <div role="status" style={{ margin: "16px 0", padding: "12px 16px", border: "1px solid #fed7aa", borderRadius: "8px", background: "#fff7ed", color: "#9a3412" }}>
+                        <strong>Departure schedule alert:</strong> These published treks have fewer than two bookable upcoming departures:{" "}
+                        {departureSummary.lowDepartureTreks.map((trek) => trek.title).join(", ")}.
+                      </div>
+                    )}
+
+                    <h4>Next Published Departures</h4>
+                    {departureSummary.upcomingDepartures?.length ? (
+                      <div className="adm-table-wrap">
+                        <table className="adm-table">
+                          <thead>
+                            <tr><th>Trek</th><th>Departure</th><th>Return</th><th>Status</th><th>Seats</th></tr>
+                          </thead>
+                          <tbody>
+                            {departureSummary.upcomingDepartures.map((departure) => (
+                              <tr key={departure._id}>
+                                <td>{departure.trek?.title || "Trek"}</td>
+                                <td>{new Date(departure.startDate).toLocaleDateString()}</td>
+                                <td>{new Date(departure.endDate).toLocaleDateString()}</td>
+                                <td><span className="adm-pill">{departure.lifecycleStatus}</span></td>
+                                <td>{departure.availableSeats} / {departure.capacity}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : <p>No published upcoming departures.</p>}
+                  </>
+                ) : <p role="status">Departure summary is unavailable. Refresh to try again.</p>}
               </div>
 
               {/* Dynamic Status & Payment Breakdown */}
@@ -2159,15 +2344,53 @@ export function AdminPage() {
               <div className="adm-pane-header">
                 <div className="adm-pane-title">
                   <h2>Fixed Group Departures</h2>
-                  <p>Schedule guaranteed departure dates with maximum group PAX limits and special pricing.</p>
+                  <p>Create and manage one fixed date per group departure.</p>
                 </div>
-                <button type="button" className="adm-btn-primary" onClick={handleOpenAddDeparture}>
-                  <Plus size={16} /> Schedule Departure
-                </button>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button type="button" className="adm-btn-ghost" onClick={loadDepartures} disabled={departuresLoading}>
+                    <RefreshCw size={16} /> {departuresLoading ? "Refreshing..." : "Refresh"}
+                  </button>
+                  <button type="button" className="adm-btn-primary" onClick={handleOpenAddDeparture}>
+                    <Plus size={16} /> Schedule Departure
+                  </button>
+                </div>
               </div>
+              {departureLoadError && (
+                <p className="adm-help-text" role="alert" style={{ color: "#b91c1c" }}>
+                  {departureLoadError} Use Refresh to try again.
+                </p>
+              )}
+              {departureLoadNotice && (
+                <p className="adm-help-text" role="status">{departureLoadNotice}</p>
+              )}
               <p className="adm-help-text">
-                Group departures are the dated, capacity-limited trips travelers choose during booking. Their trek, price, seat availability, and status are shown in the public booking calendar.
+                Remaining seats update automatically as reservations are made. Published dates appear on the matching trek page.
               </p>
+
+              <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ position: "relative", flex: 1, minWidth: "220px", maxWidth: "360px" }}>
+                  <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input
+                    type="search"
+                    value={departureSearch}
+                    onChange={(event) => setDepartureSearch(event.target.value)}
+                    placeholder="Search trek package..."
+                    style={{ width: "100%", padding: "8px 12px 8px 36px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "13px" }}
+                  />
+                </div>
+                <label>From <input type="date" value={departureDateFrom} onChange={(event) => setDepartureDateFrom(event.target.value)} style={{ padding: "8px", border: "1px solid #cbd5e1", borderRadius: "8px" }} /></label>
+                <label>To <input type="date" value={departureDateTo} onChange={(event) => setDepartureDateTo(event.target.value)} style={{ padding: "8px", border: "1px solid #cbd5e1", borderRadius: "8px" }} /></label>
+                <select
+                  value={departureStatusFilter}
+                  onChange={(event) => setDepartureStatusFilter(event.target.value)}
+                  style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "13px", background: "#ffffff", color: "#334155" }}
+                >
+                  <option value="all">All lifecycle statuses</option>
+                  {["Draft", "Open", "Limited Seats", "Fully Booked", "Guaranteed", "Closed", "In Progress", "Completed", "Cancelled"].map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
 
               <div className="adm-card">
                 <div className="adm-table-wrap">
@@ -2177,25 +2400,45 @@ export function AdminPage() {
                         <th>Trek Package</th>
                         <th>Start Date</th>
                         <th>End Date</th>
-                        <th>Capacity</th>
+                        <th>Booking Closes</th>
+                        <th>Seats Available</th>
                         <th>Special Price</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {departuresList.map((dep) => (
+                      {filteredDepartures.map((dep) => (
                         <tr key={dep._id || dep.id}>
                           <td><strong>{dep.trek?.title || dep.trekTitle || dep.trekSlug || "Trek"}</strong></td>
                           <td>{dep.startDate ? new Date(dep.startDate).toLocaleDateString() : "—"}</td>
                           <td>{dep.endDate ? new Date(dep.endDate).toLocaleDateString() : "—"}</td>
-                          <td>{dep.availableSeats ?? Math.max(0, (dep.capacity || 0) - (dep.bookedCount || 0))} / {dep.capacity || 0} Seats</td>
+                          <td>{dep.bookingClosingDate ? new Date(dep.bookingClosingDate).toLocaleDateString() : "—"}</td>
+                          <td>
+                            {getDepartureAvailableSeats(dep)} left of {dep.capacity || 0}
+                            {getDepartureAvailableSeats(dep) === 0 && " · Unavailable"}
+                            {dep.minGroupSize > 1 && <small> · min. {dep.minGroupSize}</small>}
+                          </td>
                           <td><strong>${dep.price?.toLocaleString()}</strong></td>
                           <td>
-                            <span className={`adm-pill ${dep.status === "Closed" || dep.status === "Cancelled" ? "red" : "green"}`}>{dep.status || "Available"}</span>
+                            <span className={`adm-pill ${["Closed", "Cancelled", "Completed", "Fully Booked"].includes(getDepartureStatus(dep)) ? "red" : "green"}`}>
+                              {getDepartureStatus(dep)}
+                            </span>
                           </td>
                           <td>
                             <div className="adm-actions-row">
+                              <button type="button" className="adm-btn-ghost" onClick={() => handleDepartureUpdate(dep, { published: dep.published === false }, dep.published === false ? "published" : "unpublished")}>
+                                {dep.published === false ? "Publish" : "Unpublish"}
+                              </button>
+                              <button type="button" className="adm-btn-ghost" onClick={() => handleDepartureUpdate(dep, { status: dep.status === "Guaranteed" ? "Available" : "Guaranteed" }, dep.status === "Guaranteed" ? "unmarked guaranteed" : "marked guaranteed")}>
+                                {dep.status === "Guaranteed" ? "Unmark Guaranteed" : "Guarantee"}
+                              </button>
+                              {!["Closed", "Cancelled", "Completed"].includes(dep.lifecycleStatus) && (
+                                <button type="button" className="adm-btn-ghost" onClick={() => handleDepartureUpdate(dep, { status: "Closed" }, "closed")}>Close</button>
+                              )}
+                              {!["Cancelled", "Completed"].includes(dep.lifecycleStatus) && (
+                                <button type="button" className="adm-btn-ghost" onClick={() => handleCancelDeparture(dep)}>Cancel</button>
+                              )}
                               <button type="button" className="adm-icon-btn" onClick={() => handleOpenEditDeparture(dep)} title="Edit Departure">
                                 <Edit size={15} />
                               </button>
@@ -2211,6 +2454,16 @@ export function AdminPage() {
                           </td>
                         </tr>
                       ))}
+                      {!departureLoadError && !departuresLoading && filteredDepartures.length === 0 && (
+                        <tr>
+                          <td colSpan={8}>No group departures match the selected filters.</td>
+                        </tr>
+                      )}
+                      {departuresLoading && (
+                        <tr>
+                          <td colSpan={8}>Loading group departures...</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2226,7 +2479,7 @@ export function AdminPage() {
               <div className="adm-pane-header">
                 <div className="adm-pane-title">
                   <h2>Traveler Bookings & Reservations</h2>
-                  <p>Search, filter, view complete traveler dossiers, edit participant details, and moderate bookings.</p>
+                  <p>Search and manage reservations. Confirm a booking first; after its departure end date passes, mark it completed to unlock the traveler’s review form.</p>
                 </div>
               </div>
 
@@ -2416,6 +2669,7 @@ export function AdminPage() {
                                     <button
                                       type="button"
                                       className="adm-icon-btn"
+                                      aria-label={`Mark ${b.bookingReference} completed`}
                                       onClick={() => handleUpdateBooking(b._id || b.id, "Completed", pStatus || "Paid")}
                                       title="Mark Completed"
                                       style={{ color: "#0284c7" }}
@@ -2450,6 +2704,55 @@ export function AdminPage() {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === "favorites" && (
+            <div>
+              <div className="adm-pane-header">
+                <div className="adm-pane-title">
+                  <h2>Traveler Favorites</h2>
+                  <p>Saved trek lists are private to each traveler account. This admin view shows who saved each trek.</p>
+                </div>
+              </div>
+              {favoritesError ? (
+                <div className="adm-card" role="alert" style={{ padding: "18px" }}>{favoritesError}</div>
+              ) : (
+                <div className="adm-card">
+                  <div className="adm-table-wrap">
+                    <table className="adm-table">
+                      <thead>
+                        <tr>
+                          <th>Traveler</th>
+                          <th>Email</th>
+                          <th>Saved Treks</th>
+                          <th>Last Updated</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {favoritesList.length === 0 ? (
+                          <tr><td colSpan={4} className="adm-empty-cell">No signed-in travelers have saved treks yet.</td></tr>
+                        ) : favoritesList.map((favorite) => (
+                          <tr key={favorite._id}>
+                            <td><strong>{favorite.user?.name || "Traveler"}</strong></td>
+                            <td>{favorite.user?.email || "—"}</td>
+                            <td>
+                              <div className="adm-item-title-col">
+                                {favorite.treks?.length ? favorite.treks.map((trek) => (
+                                  <Link key={trek._id} to={`/treks/${trek.slug}`} target="_blank" rel="noreferrer">
+                                    {trek.title}
+                                  </Link>
+                                )) : <span>No saved treks</span>}
+                              </div>
+                            </td>
+                            <td>{favorite.updatedAt ? new Date(favorite.updatedAt).toLocaleString() : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3717,7 +4020,7 @@ export function AdminPage() {
 
               <div className="adm-form-row">
                 <div className="adm-field">
-                  <label>Capacity (PAX)</label>
+                  <label>Total Group Capacity (travelers)</label>
                   <input
                     type="number"
                     value={depForm.capacity}
@@ -3727,19 +4030,44 @@ export function AdminPage() {
                   />
                 </div>
                 <div className="adm-field">
+                  <label>Minimum Group Size</label>
+                  <input
+                    type="number"
+                    value={depForm.minGroupSize}
+                    onChange={(e) => setDepForm({ ...depForm, minGroupSize: Number(e.target.value) })}
+                    min={1}
+                    max={depForm.capacity}
+                    required
+                  />
+                </div>
+              </div>
+              <p className="adm-help-text">Available seats are calculated from total capacity minus reserved seats.</p>
+
+              <div className="adm-form-row">
+                <div className="adm-field">
                   <label>Special Price / PAX ($)</label>
                   <input
                     type="number"
                     value={depForm.price}
                     onChange={(e) => setDepForm({ ...depForm, price: Number(e.target.value) })}
+                    min={0}
                     required
                   />
+                </div>
+                <div className="adm-field">
+                  <label>Original Price / PAX ($)</label>
+                  <input type="number" min="0" value={depForm.originalPrice} onChange={(e) => setDepForm({ ...depForm, originalPrice: e.target.value })} />
                 </div>
               </div>
               <div className="adm-form-row">
                 <div className="adm-field">
-                  <label>Original Price / PAX ($)</label>
-                  <input type="number" min="0" value={depForm.originalPrice} onChange={(e) => setDepForm({ ...depForm, originalPrice: e.target.value })} />
+                  <label>Booking Closing Date</label>
+                  <input
+                    type="date"
+                    value={depForm.bookingClosingDate}
+                    max={depForm.startDate || undefined}
+                    onChange={(e) => setDepForm({ ...depForm, bookingClosingDate: e.target.value })}
+                  />
                 </div>
                 <div className="adm-field">
                   <label>Departure Status</label>
@@ -3747,6 +4075,16 @@ export function AdminPage() {
                     {["Available", "Guaranteed", "Filling Fast", "Closed", "Cancelled"].map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className="adm-form-row">
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                  <input
+                    type="checkbox"
+                    checked={depForm.published}
+                    onChange={(e) => setDepForm({ ...depForm, published: e.target.checked })}
+                  />
+                  Publish this departure to travelers
+                </label>
               </div>
 
               <div className="adm-modal-footer">
@@ -4154,9 +4492,20 @@ export function AdminPage() {
                   >
                     <option value="Pending">Pending</option>
                     <option value="Confirmed">Confirmed</option>
-                    <option value="Completed">Completed</option>
+                    <option
+                      value="Completed"
+                      disabled={editingBooking?.bookingStatus !== "Completed" && !(
+                        editingBooking?.bookingStatus === "Confirmed" &&
+                        hasDepartureEnded(editingBooking?.departure?.endDate)
+                      )}
+                    >
+                      Completed
+                    </option>
                     <option value="Cancelled">Cancelled</option>
                   </select>
+                  <small className="adm-item-submeta">
+                    Mark a confirmed booking completed after its departure has ended. The traveler can then submit a review from My Reviews.
+                  </small>
                 </div>
                 <div className="adm-field">
                   <label>Payment Status</label>

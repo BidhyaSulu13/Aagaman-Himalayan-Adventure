@@ -471,6 +471,22 @@ h2 em {
   color: #ffffff;
 }
 
+.traveler-login-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.traveler-login-link:hover {
+  color: #fdba74;
+}
+
 .header-cta-btn {
   background: #ea580c !important;
   color: #ffffff !important;
@@ -3458,6 +3474,7 @@ h2 em {
 
   .header-actions .header-search-form,
   .header-actions .admin-portal-link,
+  .header-actions .traveler-login-link,
   .header-actions .header-cta-btn {
     display: none;
   }
@@ -12386,6 +12403,126 @@ h2 em {
 
 .dash-nav-btn svg {
   flex: 0 0 auto;
+}
+
+.google-signin-wrap {
+  display: grid;
+  min-height: 42px;
+  justify-items: center;
+}
+
+.google-signin-wrap>div {
+  width: 100%;
+  min-height: 40px;
+}
+
+.google-signin-wrap iframe {
+  max-width: 100%;
+}
+
+.auth-config-note,
+.auth-success-message,
+.auth-error-message {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.auth-config-note {
+  color: #6d766d;
+  background: #f4f4ef;
+}
+
+.auth-success-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #245c3e;
+  background: #edf7ee;
+}
+
+.auth-success-message svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.auth-error-message {
+  color: #9f2d22;
+  background: #fff0ed;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: #898d84;
+  font-size: 9px;
+  text-align: center;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  flex: 1;
+  background: #e4e5de;
+  content: "";
+}
+
+.auth-email-link-button {
+  display: block;
+  width: 100%;
+  margin-top: 15px;
+  padding: 10px;
+  border: 0;
+  color: var(--forest);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-email-link-button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.guest-dashboard-signin {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.65;
+  text-align: center;
+}
+
+.guest-dashboard-signin a {
+  color: #c2410c;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.my-review-rating {
+  margin: 12px 0 4px !important;
+  color: #d97706;
+  letter-spacing: 2px;
+}
+
+.my-review-rating span {
+  color: #cbd5e1;
+}
+
+.request-card h3 {
+  margin: 5px 0;
+  color: var(--forest);
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 400;
 }
 
 .dash-helpline-box {

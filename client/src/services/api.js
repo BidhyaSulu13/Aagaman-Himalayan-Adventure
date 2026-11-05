@@ -1,6 +1,6 @@
 const API_BASE = "/api";
 
-async function request(endpoint, options = {}) {
+async function request(endpoint, options = {}, { quietStatuses = [] } = {}) {
   const url = `${API_BASE}${endpoint}`;
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers = {
@@ -23,12 +23,16 @@ async function request(endpoint, options = {}) {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || `Request failed with status ${response.status}`);
+      const error = new Error(data.message || `Request failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     return data;
   } catch (error) {
-    console.error(`API Error on [${options.method || "GET"} ${endpoint}]:`, error.message);
+    if (!quietStatuses.includes(error.status)) {
+      console.error(`API Error on [${options.method || "GET"} ${endpoint}]:`, error.message);
+    }
     throw error;
   }
 }
@@ -39,6 +43,9 @@ export const api = {
     register: (body) => request("/auth/register", { method: "POST", body }),
     login: (body) => request("/auth/login", { method: "POST", body }),
     adminLogin: (body) => request("/auth/admin/login", { method: "POST", body }),
+    googleLogin: (body) => request("/auth/google", { method: "POST", body }),
+    requestLoginLink: (body) => request("/auth/request-login-link", { method: "POST", body }),
+    verifyLoginLink: (body) => request("/auth/verify-login-link", { method: "POST", body }),
     logout: () => request("/auth/logout", { method: "POST" }),
     getMe: () => request("/auth/me"),
     updateProfile: (body) => request("/auth/profile", { method: "PUT", body }),
@@ -108,6 +115,18 @@ export const api = {
       const q = new URLSearchParams(params).toString();
       return request(`/departures${q ? `?${q}` : ""}`);
     },
+    getById: (id) => request(`/departures/${encodeURIComponent(id)}`),
+    getAdminAll: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/departures/admin${q ? `?${q}` : ""}`, {}, { quietStatuses: [404] }).catch((error) => {
+        if (error.status !== 404) throw error;
+        return request(`/departures${q ? `?${q}` : ""}`).then((response) => ({
+          ...response,
+          adminFallback: true,
+        }));
+      });
+    },
+    getSummary: () => request("/departures/admin/summary"),
     create: (body) => request("/departures", { method: "POST", body }),
     update: (id, body) => request(`/departures/${id}`, { method: "PUT", body }),
     delete: (id) => request(`/departures/${id}`, { method: "DELETE" }),
@@ -153,6 +172,7 @@ export const api = {
   favorites: {
     get: () => request("/favorites"),
     toggle: (trekId) => request("/favorites/toggle", { method: "POST", body: { trekId } }),
+    getAdminAll: () => request("/favorites/admin"),
   },
 
   // ── ARTICLES ──

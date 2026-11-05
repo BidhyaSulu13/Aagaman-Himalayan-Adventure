@@ -48,15 +48,7 @@ async function waitForApi(server) {
       );
     }
 
-    try {
-      const response = await fetch(apiHealthUrl, { signal: AbortSignal.timeout(1000) });
-      if (response.ok) {
-        const health = await response.json();
-        if (health.service === "himalayan-adventure-api") return;
-      }
-    } catch {
-      // The API is still starting; retry until the startup deadline.
-    }
+    if (await isApiHealthy()) return;
 
     await delay(500);
   }
@@ -66,10 +58,25 @@ async function waitForApi(server) {
   );
 }
 
+async function isApiHealthy() {
+  try {
+    const response = await fetch(apiHealthUrl, { signal: AbortSignal.timeout(1000) });
+    if (!response.ok) return false;
+    const health = await response.json();
+    return health.service === "himalayan-adventure-api";
+  } catch {
+    return false;
+  }
+}
+
 try {
-  console.log("Starting the Himalayan Adventure API...");
-  const server = startNode(["--watch", "src/server.js"], serverDir, "API server");
-  await waitForApi(server);
+  if (await isApiHealthy()) {
+    console.log("The Himalayan Adventure API is already healthy.");
+  } else {
+    console.log("Starting the Himalayan Adventure API...");
+    const server = startNode(["--watch", "src/server.js"], serverDir, "API server");
+    await waitForApi(server);
+  }
 
   console.log("API is healthy. Starting the Vite client...");
   startNode([resolve(clientDir, "node_modules/vite/bin/vite.js")], clientDir, "Vite client");

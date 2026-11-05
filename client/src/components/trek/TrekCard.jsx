@@ -4,9 +4,10 @@ import { useFavorites } from "../../context/FavoritesContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 
 export function TrekCard({ trek, badge: explicitBadge, compact = false }) {
-  const { isSaved, toggleSaved } = useFavorites();
+  const { isSaved, isSaving, loading: favoritesLoading, toggleSaved } = useFavorites();
   const notify = useToast();
   const saved = isSaved(trek.slug);
+  const saving = isSaving(trek.slug);
 
   const image =
     trek.images?.[0] ||
@@ -38,11 +39,19 @@ export function TrekCard({ trek, badge: explicitBadge, compact = false }) {
 
   const badgeType = resolveBadge();
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleSaved(trek.slug);
-    notify(saved ? "Removed from your saved treks" : "Added to your saved treks");
+    try {
+      const response = await toggleSaved(trek.slug, trek);
+      if (response.requiresAuth) {
+        notify("Sign in to save treks to your account.");
+        return;
+      }
+      notify(saved ? "Removed from your saved treks" : "Added to your saved treks");
+    } catch (error) {
+      notify(error.message || "Unable to update saved treks.");
+    }
   };
 
   // Badge styling configuration
@@ -110,6 +119,7 @@ export function TrekCard({ trek, badge: explicitBadge, compact = false }) {
           type="button"
           className={`card-v2-fav-btn${saved ? " is-saved" : ""}`}
           onClick={handleSave}
+          disabled={favoritesLoading || saving}
           aria-label={saved ? `Remove ${trek.title} from saved` : `Save ${trek.title}`}
         >
           <Heart size={16} fill={saved ? "currentColor" : "none"} />

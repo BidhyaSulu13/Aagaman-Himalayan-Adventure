@@ -25,8 +25,17 @@ const userSchema = new Schema(
     },
     passwordHash: {
       type: String,
-      required: [true, "Password is required"],
       select: false,
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false,
     },
     role: {
       type: String,
@@ -55,6 +64,8 @@ const userSchema = new Schema(
     },
     resetPasswordToken: { type: String, select: false },
     resetPasswordExpires: { type: Date, select: false },
+    loginLinkTokenHash: { type: String, select: false },
+    loginLinkExpiresAt: { type: Date, select: false },
   },
   {
     timestamps: true,
@@ -63,7 +74,8 @@ const userSchema = new Schema(
 
 // Method to verify password
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.passwordHash);
+  if (!this.passwordHash) return false;
+  return bcrypt.compare(enteredPassword, this.passwordHash);
 };
 
 // Static helper to hash password

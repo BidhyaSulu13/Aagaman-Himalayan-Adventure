@@ -67,54 +67,59 @@ const destinationsData = [
   {
     slug: "pokhara",
     name: "Pokhara",
-    region: "Annapurna Region",
+    region: "Annapurna",
     elevation: 822,
-    label: "Nepal’s enchanting lakeside paradise & gateway to the Annapurnas",
+    label: "A lakeside city and access point for Annapurna journeys",
     description:
-      "A tranquil sub-tropical oasis resting beneath the dramatic, snow-draped pyramid of Machapuchare (Fishtail, 6,993m). Pokhara is the beloved staging ground for all Annapurna expeditions, famed for serene boat rides on Phewa Lake, lakeside cafes, and panoramic Himalayan sunrises.",
+      "Pokhara is a lakeside city in Nepal’s Gandaki Province, set beneath views of the Annapurna range and Machhapuchhre (Fishtail). It is a popular place to prepare for nearby Annapurna treks, with road and air connections, shops, lodging, and services. Visitors also come for Phewa Lake, hilltop viewpoints, museums, and day trips around the Pokhara Valley. Weather, transport schedules, and trail access vary by season and should be confirmed before travel.",
     coordinates: { lat: 28.2096, lng: 83.9856 },
     images: [
       "https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&w=1200&q=80",
       "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80"
     ],
-    bestSeason: ["Autumn (Sep–Nov)", "Spring (Mar–May)", "Winter (Dec–Feb)"],
+    bestSeason: ["Autumn (Sep–Nov)", "Spring (Mar–May)"],
     trekSlugs: ["annapurna-sanctuary", "poon-hill", "annapurna-circuit"],
     highlights: [
-      "Mirror reflections of Machapuchare (Fishtail) in Phewa Lake",
-      "World-class paragliding flights from Sarangkot ridge",
-      "Staging hub with direct road and air connections to trekking trailheads",
-      "Vibrant pedestrian lakeside with organic cafes and live acoustic music"
+      "Phewa Lake and views toward the Annapurna range and Machhapuchhre",
+      "Sarangkot viewpoint, known for mountain panoramas and paragliding launches",
+      "A convenient base for planning and reaching nearby Annapurna trailheads",
+      "Museums, caves, waterfalls, temples, and lakeside neighborhoods"
     ],
     attractions: [
-      { name: "Phewa Lake & Tal Barahi Island Temple", type: "Lake & Spiritual Shrine", description: "Nepal's second largest lake; wooden paddle boats drift past the two-story pagoda temple floating in the center." },
-      { name: "Sarangkot Sunrise Hill", type: "Viewpoint", description: "Breathtaking dawn vista spanning Dhaulagiri, Annapurna I (8,091m), Machapuchare, and Manaslu." },
-      { name: "World Peace Pagoda (Shanti Stupa)", type: "Buddhist Monument", description: "Brilliant white stupa situated atop Anadu Hill overlooking the valley, lake, and snow peaks." }
+      { name: "Phewa Lake and Tal Barahi Temple", type: "Lake and Hindu temple", description: "A major Pokhara landmark. Boats cross the lake to the island temple; follow local guidance and check current boating conditions and fees." },
+      { name: "Sarangkot", type: "Viewpoint and paragliding area", description: "A hilltop viewpoint above Pokhara with broad valley and mountain views on clear days. Sunrise visibility depends on weather; paragliding is operated by local providers and is weather-dependent." },
+      { name: "World Peace Pagoda", type: "Buddhist monument and viewpoint", description: "A hilltop stupa above Phewa Lake reached by road or walking routes. Respect the site and follow posted visitor guidance." },
+      { name: "Davis Falls and Gupteshwor Mahadev Cave", type: "Waterfall and cave", description: "Popular sites in the city area. Water flow and cave access conditions vary; observe barriers and local safety instructions." },
+      { name: "International Mountain Museum", type: "Museum", description: "Exhibitions cover mountaineering, Himalayan environments, and mountain communities. Check current opening hours before visiting." }
     ],
     accommodationTypes: [
       {
-        type: "Lakeside Luxury Resorts",
-        badge: "5-Star & Boutique",
-        description: "Opulent garden resorts offering swimming pools, Ayurvedic spas, and private balconies overlooking the lake and Annapurnas.",
-        amenities: ["Swimming Pools", "Ayurvedic Spas", "Fine Dining", "Airport Transfers"]
+        type: "Lakeside hotels and resorts",
+        badge: "Multiple comfort levels",
+        description: "The Lakeside area has a range of properties, from simple rooms to full-service hotels. Facilities, views, accessibility, and prices vary by property.",
+        amenities: ["Restaurants nearby", "Options near the lake", "Facilities vary by property"]
       },
       {
-        type: "Heritage Boutique Guesthouses",
-        badge: "Charming & Quiet",
-        description: "Cozy family-run villas tucked away in quiet side alleys with manicured lawns and complimentary morning mountain tea.",
-        amenities: ["Private Balconies", "Organic Breakfast", "Trekking Gear Storage"]
+        type: "Guesthouses and locally run stays",
+        badge: "Local stays",
+        description: "Guesthouses and smaller hotels are available in Lakeside and other parts of Pokhara. Confirm the location, included services, and current conditions directly with the property.",
+        amenities: ["A range of room types", "Local dining options", "Facilities vary by property"]
       }
     ],
     culturalHighlights: {
-      ethnicGroups: ["Gurung", "Magar", "Newar", "Brahmin/Chhetri"],
-      overview: "Pokhara is a melting pot of hill traditions, renowned for legendary Gurung Gurkha soldiers and rich musical folklore.",
+      ethnicGroups: ["Gurung", "Magar", "Newar", "Thakali", "Brahmin and Chhetri communities"],
+      overview: "Pokhara and the surrounding region are home to diverse communities and religious traditions. Learn about local history and customs from community-led museums, guides, and cultural organizations.",
       etiquette: [
-        "Always remove footwear before entering Hindu temples and local homes.",
-        "Negotiate boat rentals and taxis with a friendly smile."
+        "Follow signs and local guidance at temples, monasteries, and other sacred places.",
+        "Ask permission before photographing people or private ceremonies.",
+        "Use designated paths and dispose of waste responsibly around lakes and viewpoints."
       ]
     },
     nearbySideTrips: [
-      { name: "Sarangkot Paragliding Flight", duration: "Half Day", elevation: "1,590m", description: "Tandem paragliding glide over green hills with Annapurna peaks towering in the background." },
-      { name: "Australian Camp & Dhampus Day Hike", duration: "Full Day", elevation: "2,060m", description: "Short gentle foothill trek through Gurung farming villages and pine forests." }
+      { name: "Sarangkot viewpoint", duration: "Half day", elevation: "About 1,600m", description: "Reach the hilltop by road or walking route for views over Pokhara and, when visibility allows, the surrounding mountains." },
+      { name: "World Peace Pagoda walk", duration: "Half day", elevation: "About 1,100m", description: "A hill walk above Phewa Lake. Route conditions and access can change; ask locally before setting out." },
+      { name: "Dhampus and Australian Camp", duration: "One or more days", elevation: "About 2,000m", description: "Foothill villages and viewpoints reached by walking routes from the Pokhara area. Confirm route, transport, and overnight arrangements with a local operator." },
+      { name: "Begnas Lake", duration: "Half day", elevation: "About 650m", description: "A quieter lake east of Pokhara with local communities and lakeside views; confirm current transport and boating options." }
     ]
   },
   {
@@ -453,25 +458,34 @@ const destinationsData = [
 
 async function seed() {
   try {
+    const onlySlug = process.argv.find((argument) => argument.startsWith("--only="))?.slice("--only=".length);
     if (!process.argv.includes("--confirm")) {
-      throw new Error("This script deletes and upserts destination records. Re-run with --confirm to proceed.");
+      throw new Error(onlySlug
+        ? `Re-run with --only=${onlySlug} --confirm to upsert only that destination.`
+        : "This script deletes and upserts destination records. Re-run with --confirm to proceed.");
+    }
+    if (onlySlug && !destinationsData.some((destination) => destination.slug === onlySlug)) {
+      throw new Error(`Unknown destination slug "${onlySlug}". No records were changed.`);
     }
 
     const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/himalayan_adventure";
     console.log("Connecting to the configured MongoDB database.");
     await mongoose.connect(uri);
 
-    // Remove the old region-like destination entries
-    const oldRegionsToRemove = ["annapurna-massif", "everest-khumbu", "langtang-valley-region", "manaslu-circuit-region"];
-    await Destination.deleteMany({ slug: { $in: oldRegionsToRemove } });
-    console.log("Removed old regions from destinations collection.");
+    if (!onlySlug) {
+      const oldRegionsToRemove = ["annapurna-massif", "everest-khumbu", "langtang-valley-region", "manaslu-circuit-region"];
+      await Destination.deleteMany({ slug: { $in: oldRegionsToRemove } });
+      console.log("Removed old regions from destinations collection.");
+    }
 
-    // Upsert each tourist/cultural destination
-    for (const d of destinationsData) {
+    const destinationsToUpsert = onlySlug
+      ? destinationsData.filter((destination) => destination.slug === onlySlug)
+      : destinationsData;
+    for (const d of destinationsToUpsert) {
       await Destination.findOneAndUpdate(
         { slug: d.slug },
         { $set: d },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after", runValidators: true }
       );
       console.log(`Upserted destination: ${d.name} (${d.slug})`);
     }

@@ -255,9 +255,11 @@ export async function createReview(req, res, next) {
 
     const isOwner =
       booking.user?.toString() === req.user._id.toString() ||
-      booking.travelerDetails.some(
+      (req.user.role === "traveler" &&
+        req.user.emailVerified === true &&
+        booking.travelerDetails.some(
         (traveler) => traveler.email.toLowerCase() === req.user.email.toLowerCase()
-      );
+        ));
     if (!isOwner || booking.bookingStatus !== "Completed") {
       return res.status(403).json({
         success: false,

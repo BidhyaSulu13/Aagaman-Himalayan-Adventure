@@ -42,8 +42,12 @@ import {
 import { Page } from "../../components/common/Page.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { useFavorites } from "../../context/FavoritesContext.jsx";
-import { useDepartures, useTreks } from "../../hooks/useDataStore.js";
 import { api } from "../../services/api.js";
+import {
+  getDepartureAvailableSeats,
+  getDepartureStatus,
+  isDepartureBookable,
+} from "../../services/departures.js";
 import { NotFoundPage } from "./MiscPages.jsx";
 import "./TrekDetailsUpgrade.css";
 
@@ -51,25 +55,25 @@ const HimalayanMap = lazy(() => import("../../components/maps/HimalayanMap.jsx")
 
 export function TrekDetailPage() {
   const { slug } = useParams();
-  const treks = useTreks();
-  const allDepartures = useDepartures();
   const [remoteTrek, setRemoteTrek] = useState(null);
   const [remoteDepartures, setRemoteDepartures] = useState(null);
+  const [trekLoading, setTrekLoading] = useState(true);
+  const [trekError, setTrekError] = useState("");
+  const [trekNotFound, setTrekNotFound] = useState(false);
   const [trekReviews, setTrekReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [reviewsError, setReviewsError] = useState("");
-  const cachedTrek = treks.find((t) => t.slug === slug);
   const trek = remoteTrek
     ? {
         ...remoteTrek,
         image: remoteTrek.image || remoteTrek.images?.[0] || "",
-        elevation: remoteTrek.maximumElevation || remoteTrek.elevation,
+        elevation: remoteTrek.maximumElevation ?? remoteTrek.elevation,
         description: remoteTrek.shortDescription || remoteTrek.description || "",
         introduction: remoteTrek.fullDescription || remoteTrek.introduction || "",
         included: remoteTrek.included || remoteTrek.inclusions || [],
         excluded: remoteTrek.excluded || remoteTrek.exclusions || [],
       }
-    : cachedTrek;
+    : null;
 
   const { isSaved, toggleSaved } = useFavorites();
   const notify = useToast();
@@ -90,6 +94,9 @@ export function TrekDetailPage() {
     let active = true;
     setRemoteTrek(null);
     setRemoteDepartures(null);
+    setTrekLoading(true);
+    setTrekError("");
+    setTrekNotFound(false);
     setTrekReviews([]);
     setReviewsError("");
     setActivePhotoIdx(0);
@@ -105,16 +112,21 @@ export function TrekDetailPage() {
               : []
           );
           setTrekReviews(Array.isArray(response.reviews) ? response.reviews : []);
+        } else {
+          setTrekNotFound(true);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
-          setTrekReviews([]);
-          setReviewsError("Traveler reviews could not be loaded. Please try again later.");
+          if (error.message.toLowerCase().includes("not found")) setTrekNotFound(true);
+          else setTrekError(error.message || "Unable to load this trek.");
         }
       })
       .finally(() => {
-        if (active) setReviewsLoading(false);
+        if (active) {
+          setTrekLoading(false);
+          setReviewsLoading(false);
+        }
       });
     return () => { active = false; };
   }, [slug]);
@@ -141,11 +153,17 @@ export function TrekDetailPage() {
   const [reviewLinkMessage, setReviewLinkMessage] = useState("");
   const [reviewLinkError, setReviewLinkError] = useState("");
 
-  if (!trek) return <NotFoundPage />;
+  if (trekLoading) {
+    return <Page className="trek-detail-page"><p className="section-wrap" role="status">Loading trek details…</p></Page>;
+  }
+  if (trekError) {
+    return <Page className="trek-detail-page"><p className="section-wrap" role="alert">{trekError}</p></Page>;
+  }
+  if (trekNotFound || !trek) return <NotFoundPage />;
 
   const saved = isSaved(trek.slug);
-  const departures = (remoteDepartures || allDepartures.filter((d) => d.trekSlug === trek.slug))
-    .filter((departure) => new Date(departure.startDate) >= new Date());
+  const departures = (remoteDepartures || [])
+    .filter((departure) => new Date(departure.startDate) >= new Date(new Date().setUTCHours(0, 0, 0, 0)));
 
   const coverImage = trek.image || trek.images?.[0] || "";
   const uploadedGallery = [
@@ -456,7 +474,7 @@ export function TrekDetailPage() {
               <div className="sherpa-note-banner">
                 <Quote size={24} className="note-icon" />
                 <p>"{trek.sherpaTip}"</p>
-                <small>— Ang Norbu Sherpa, Senior Mountain Leader</small>
+                <small>Trek note</small>
               </div>
             )}
           </div>
@@ -598,13 +616,17 @@ export function TrekDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {departures.map((dep) => (
+                    {departures.map((dep) => {
+                      const availableSeats = getDepartureAvailableSeats(dep);
+                      const departureStatus = getDepartureStatus(dep);
+                      const canBook = isDepartureBookable(dep);
+                      return (
                       <tr key={dep._id || dep.id}>
                         <td><strong>{new Date(dep.startDate).toLocaleDateString()}</strong></td>
                         <td>{dep.endDate ? new Date(dep.endDate).toLocaleDateString() : "—"}</td>
                         <td>
-                          <span className={`status-pill status-${(dep.status || "available").toLowerCase().replace(/\s+/g, "-")}`}>
-                            {dep.status || "Available"}
+                          <span className={`status-pill status-${departureStatus.toLowerCase().replace(/\s+/g, "-")}`}>
+                            {departureStatus}
                           </span>
                         </td>
                         <td>
@@ -613,14 +635,20 @@ export function TrekDetailPage() {
                             <strong>${Number(dep.price).toLocaleString()}</strong>
                           </div>
                         </td>
-                        <td>{dep.availableSeats ?? Math.max(0, (dep.capacity || 0) - (dep.bookedCount || 0))} / {dep.capacity || dep.totalSeats || 0} seats</td>
                         <td>
-                          <Link to={`/booking/${trek.slug}?date=${new Date(dep.startDate).toISOString().slice(0, 10)}`} className="table-join-btn">
-                            Book This Date
-                          </Link>
+                          ({availableSeats} seats left)
+                          {dep.minGroupSize > 1 && <small> · min. group {dep.minGroupSize}</small>}
+                        </td>
+                        <td>
+                          {canBook ? (
+                            <Link to={`/booking/${trek.slug}?departureId=${encodeURIComponent(dep._id)}&date=${new Date(dep.startDate).toISOString().slice(0, 10)}`} className="table-join-btn">
+                              Book This Date
+                            </Link>
+                          ) : <span>{departureStatus === "Fully Booked" ? "Fully Booked · Unavailable" : "Unavailable"}</span>}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -628,8 +656,8 @@ export function TrekDetailPage() {
               <div className="no-departures-note">
                 <Calendar size={22} />
                 <p>No scheduled group departures are listed at the moment. Contact us to arrange a date.</p>
-                <Link to={`/booking/${trek.slug}`} className="button button-orange button-small">
-                  Request Custom Dates
+                <Link to="/contact" className="button button-orange button-small">
+                  Ask About Custom Dates
                 </Link>
               </div>
             )}
@@ -788,7 +816,7 @@ export function TrekDetailPage() {
             <div className="public-review-workflows">
               <form className="public-review-form verified-review-form" onSubmit={handleReviewLinkRequest}>
                 <h3>Completed this trek with us?</h3>
-                <p>A guaranteed departure means the trip is scheduled to run; reviews open after your trek is completed. No traveler account is needed: request a secure link with your booking reference and booking email, or <Link to="/review/request">request a review link here</Link>.</p>
+                <p>For a completed booking, request a secure review link using your booking reference and email. Review requests are checked against booking details; no traveler account is needed. You can also <Link to="/review/request">request a review link here</Link>.</p>
                 <label>Booking reference
                   <input value={reviewLinkForm.bookingReference} onChange={(event) => setReviewLinkForm({ ...reviewLinkForm, bookingReference: event.target.value })} required />
                 </label>
@@ -873,7 +901,7 @@ export function TrekDetailPage() {
             {/* Guarantee note */}
             <div className="sidebar-v2-guarantee">
               <ShieldCheck size={16} />
-              <span>{departures.length > 0 ? `${departures.length} upcoming fixed departures listed` : "Custom departure dates are available on request."}</span>
+              <span>{departures.length > 0 ? `${departures.length} upcoming departures listed` : "Ask about possible custom departure dates."}</span>
             </div>
           </div>
         </aside>
@@ -929,7 +957,7 @@ export function TrekDetailPage() {
             <div className="inquiry-modal-header">
               <div className="inquiry-header-copy">
                 <h3>Quick Expedition Inquiry</h3>
-                <p>Have a question about {trek.title}? Ask our senior guides.</p>
+                <p>Have a question about {trek.title}? Send us an inquiry.</p>
               </div>
               <button
                 type="button"
@@ -1033,7 +1061,7 @@ export function TrekDetailPage() {
                 disabled={inquirySubmitting}
               >
                 <Send size={16} />
-                {inquirySubmitting ? "Sending to Sherpa Team..." : "Submit Inquiry (Reply in 4 Hours)"}
+                {inquirySubmitting ? "Sending inquiry..." : "Submit inquiry"}
               </button>
             </form>
           </div>

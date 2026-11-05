@@ -16,7 +16,6 @@ import {
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { TrekCard } from "../../components/trek/TrekCard.jsx";
 import { api } from "../../services/api.js";
-import { dataStore } from "../../services/dataStore.js";
 
 function FilterSelect({ label, value, onChange, children }) {
   return (
@@ -60,7 +59,7 @@ export function TreksPage() {
     if (params.get("sort")) setSort(params.get("sort"));
   }, [params]);
 
-  // Fetch treks dynamically from MongoDB backend API with resilient fallback
+  // The public catalog is backed only by published database records.
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
@@ -70,20 +69,12 @@ export function TreksPage() {
       .getAll({ limit: 100 })
       .then((res) => {
         if (!isMounted) return;
-        if (res.success && Array.isArray(res.treks) && res.treks.length > 0) {
-          setTreks(res.treks);
-        } else {
-          setTreks(dataStore.getTreks());
-        }
+        setTreks(res.success && Array.isArray(res.treks) ? res.treks : []);
       })
-      .catch((_err) => {
+      .catch((requestError) => {
         if (!isMounted) return;
-        const fallback = dataStore.getTreks();
-        if (fallback && fallback.length > 0) {
-          setTreks(fallback);
-        } else {
-          setError("Unable to reach the expedition catalog. Please check your connection.");
-        }
+        setTreks([]);
+        setError(requestError.message || "Unable to load the expedition catalog.");
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -198,11 +189,13 @@ export function TreksPage() {
           Explore All <span style={{ color: "#ea580c" }}>Trekking Packages</span>
         </h1>
         <p style={{ color: "#475569", fontSize: "17px", lineHeight: 1.6 }}>
-          Discover our entire catalog of genuine Himalayan routes. Handcrafted by local Sherpas, complete with verified departures, transparent pricing, and comprehensive gear support.
+          Browse published trek listings and compare the route details, duration, difficulty, and prices currently available in the catalog. Confirm itinerary and departure details before booking.
         </p>
       </section>
 
       <section className="catalog section-wrap">
+        {loading && <p role="status">Loading expeditions…</p>}
+        {!loading && error && <p role="alert">{error}</p>}
         {/* Toolbar: Search input, Count & Sorting Dropdown */}
         <div className="catalog-toolbar">
           <div className="catalog-search">
@@ -225,8 +218,8 @@ export function TreksPage() {
           <label className="sort-control">
             <span>Sort by</span>
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="popular">Popularity (Most Booked & Viewed)</option>
-              <option value="rating">Top Rated (Verified Customer Reviews)</option>
+              <option value="popular">Popularity (Views & Reviews)</option>
+              <option value="rating">Top Rated (Verified Trekker Reviews)</option>
               <option value="price_asc">Price: Low to High</option>
               <option value="price_desc">Price: High to Low</option>
               <option value="newest">Newest Routes</option>

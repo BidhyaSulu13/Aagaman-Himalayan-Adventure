@@ -30,26 +30,17 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { useFavorites } from "../../context/FavoritesContext.jsx";
 import { useDestinations, useTreks } from "../../hooks/useDataStore.js";
 import { api } from "../../services/api.js";
-import { dataStore } from "../../services/dataStore.js";
-
-// Static fallback regions (used only when API is unreachable)
-const FALLBACK_REGIONS = [
-  { id: "everest", slug: "everest", label: "Everest Region", name: "Khumbu", match: ["Khumbu", "Everest"] },
-  { id: "annapurna", slug: "annapurna", label: "Annapurna Region", name: "Annapurna", match: ["Annapurna"] },
-  { id: "langtang", slug: "langtang", label: "Langtang Region", name: "Langtang", match: ["Langtang"] },
-  { id: "manaslu", slug: "manaslu", label: "Manaslu Region", name: "Manaslu", match: ["Manaslu"] },
-];
 
 const guideSublinks = [
   {
     title: "Altitude Safety & Acclimatization",
-    desc: "Golden rules of AMS, hydration, and safe ascent.",
+    desc: "General planning reminders and ways to prepare for altitude.",
     icon: Mountain,
     to: "/trekking-guide",
   },
   {
-    title: "Permits & TIMS 2026 Rules",
-    desc: "ACAP, Sagarmatha, RAP, and mandatory guide rules.",
+    title: "Permits & Route Requirements",
+    desc: "Confirm current permits, costs, and guide requirements with authorities.",
     icon: FileText,
     to: "/trekking-guide",
   },
@@ -60,14 +51,14 @@ const guideSublinks = [
     to: "/trekking-guide",
   },
   {
-    title: "Seasons & Weather Windows",
-    desc: "Spring rhododendrons vs. crisp autumn skies.",
+    title: "Seasons & Weather",
+    desc: "Conditions vary; check current forecasts and route status.",
     icon: Sun,
     to: "/trekking-guide",
   },
   {
-    title: "Teahouse & Sherpa Culture",
-    desc: "Bukhari stoves, dal bhat power, and trail etiquette.",
+    title: "Culture & Trail Etiquette",
+    desc: "Learn local customs from the communities you visit.",
     icon: HeartHandshake,
     to: "/trekking-guide",
   },
@@ -79,7 +70,7 @@ export function Header() {
   const [openDropdown, setOpenDropdown] = useState(null); // 'treks' | 'guide' | 'destinations' | null
   const [activeRegionId, setActiveRegionId] = useState(null);
   const [mobileExpanded, setMobileExpanded] = useState({ treks: false, guide: false, destinations: false });
-  const [dynamicRegions, setDynamicRegions] = useState(FALLBACK_REGIONS);
+  const [dynamicRegions, setDynamicRegions] = useState([]);
   const location = useLocation();
   const navigate = useNavigate();
   const [search, setSearch] = useState(() => new URLSearchParams(location.search).get("search") || "");
@@ -92,37 +83,28 @@ export function Header() {
   const treks = useTreks();
   const destinations = useDestinations();
 
-  // Fetch dynamic regions from API on mount
+  // Load navigation regions from the same public collection shown on region pages.
   useEffect(() => {
+    let active = true;
     api.regions.getAll()
       .then((res) => {
-        if (res.success && res.regions && res.regions.length > 0) {
-          const mapped = res.regions.map((r) => ({
+        if (!active) return;
+        const mapped = Array.isArray(res.regions) ? res.regions.map((r) => ({
             id: r.slug || r._id,
             slug: r.slug,
             label: r.label || r.name,
             name: r.name,
-            // Build match terms from region name + common aliases
-            match: [r.name, ...(r.label ? [r.label] : [])].filter(Boolean),
-          }));
-          setDynamicRegions(mapped);
-          // Set initial active to first region
-          if (mapped.length > 0) setActiveRegionId(mapped[0].id);
-          // Sync into dataStore for other consumers
-          res.regions.forEach((r) => dataStore.saveRegion({
-            id: r._id || r.slug,
-            slug: r.slug,
-            name: r.name,
-            label: r.label || r.name,
-            image: r.image || "",
-          }, { persist: false }));
-        } else {
-          setActiveRegionId(FALLBACK_REGIONS[0].id);
-        }
+            match: [r.name, r.label].filter(Boolean),
+        })) : [];
+        setDynamicRegions(mapped);
+        setActiveRegionId((current) =>
+            mapped.some((region) => region.id === current) ? current : mapped[0]?.id || null
+        );
       })
-      .catch(() => {
-        setActiveRegionId(FALLBACK_REGIONS[0].id);
+      .catch((error) => {
+        console.error("Unable to load navigation regions from the database:", error);
       });
+    return () => { active = false; };
   }, []);
 
   // Close menus on route change
@@ -662,6 +644,11 @@ export function Header() {
             </Link>
           )}
           <div className="mobile-actions">
+            {user && user.role === "traveler" ? (
+              <Link to="/dashboard" className="button button-outline button-full">My Dashboard</Link>
+            ) : (
+              <Link to="/login" className="button button-outline button-full">Log in</Link>
+            )}
             <Link to="/contact" className="button button-orange button-full">Plan Your Trip ↗</Link>
           </div>
         </nav>
@@ -706,6 +693,18 @@ export function Header() {
             <Link to="/admin/login" className="admin-portal-link is-admin-badge" title="Sign In to Admin Console">
               <Lock size={15} />
               <span>Admin Login</span>
+            </Link>
+          )}
+
+          {user && user.role === "traveler" ? (
+            <Link to="/dashboard" className="traveler-login-link">
+              <UserCheck size={16} />
+              <span>My Dashboard</span>
+            </Link>
+          ) : (
+            <Link to="/login" className="traveler-login-link">
+              <UserCheck size={16} />
+              <span>Log in</span>
             </Link>
           )}
 

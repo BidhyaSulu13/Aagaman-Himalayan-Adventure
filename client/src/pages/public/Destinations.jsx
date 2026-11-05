@@ -1,19 +1,55 @@
-import { useState, useMemo, lazy, Suspense } from "react";
+import { useState, useMemo, lazy, Suspense, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Compass, MapPin, Mountain, Search } from "lucide-react";
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { SectionHeading } from "../../components/common/SectionHeading.jsx";
 import { DestinationCard } from "../../components/destination/DestinationCard.jsx";
-import { DemoBanner, MapLoading } from "../../components/common/PagePrimitives.jsx";
-import { useDestinations, useRegions } from "../../hooks/useDataStore.js";
+import { MapLoading } from "../../components/common/PagePrimitives.jsx";
+import { api } from "../../services/api.js";
 
 const HimalayanMap = lazy(() => import("../../components/maps/HimalayanMap.jsx"));
 
 export function DestinationsPage() {
-  const destinations = useDestinations();
-  const regions = useRegions();
+  const [destinations, setDestinations] = useState([]);
+  const [regions, setRegions] = useState([]);
+  const [treks, setTreks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api.destinations.getAll(),
+      api.regions.getAll(),
+      api.treks.getAll({ limit: 100 }),
+    ])
+      .then(([destinationResponse, regionResponse, trekResponse]) => {
+        if (!active) return;
+        const remoteDestinations = Array.isArray(destinationResponse.destinations)
+          ? destinationResponse.destinations.map((destination) => ({
+              ...destination,
+              id: destination._id || destination.id,
+              image: destination.images?.[0] || destination.image || "",
+              lat: destination.coordinates?.lat ?? destination.lat,
+              lng: destination.coordinates?.lng ?? destination.lng,
+            }))
+          : [];
+        setDestinations(remoteDestinations);
+        setRegions(Array.isArray(regionResponse.regions) ? regionResponse.regions : []);
+        setTreks(Array.isArray(trekResponse.treks) ? trekResponse.treks : []);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLoadError(error.message || "Unable to load destinations from the database.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
 
   const regionOptions = useMemo(() => {
     const list = [{ id: "all", label: "All Destinations" }];
@@ -46,13 +82,11 @@ export function DestinationsPage() {
 
   return (
     <Page className="destinations-page">
-      <DemoBanner />
-
       {/* Intro Header */}
       <section className="page-intro section-wrap">
         <p className="eyebrow">Himalayan Towns, Trading Posts & Staging Hubs</p>
         <h1>
-          {destinations.length} Historic Destinations.<br />
+          {destinations.length} {destinations.length === 1 ? "Destination" : "Destinations"}.<br />
           <em>Where high trails begin and stories gather.</em>
         </h1>
         <p>
@@ -110,8 +144,18 @@ export function DestinationsPage() {
 
       {/* Destinations Grid */}
       <section className="section-wrap destination-tiles">
+        {loading && <p role="status">Loading destinations…</p>}
+        {!loading && loadError && <p role="alert">{loadError}</p>}
         {filteredDestinations.map((destination, index) => {
-          const trekCount = destination.trekSlugs ? destination.trekSlugs.length : 0;
+          const destinationName = destination.name.toLowerCase();
+          const destinationRegion = (destination.region || "").toLowerCase();
+          const trekCount = treks.filter((trek) =>
+            destination.trekSlugs?.includes(trek.slug) ||
+            trek.destination?.slug === destination.slug ||
+            trek.region?.toLowerCase().includes(destinationName) ||
+            trek.location?.toLowerCase().includes(destinationName) ||
+            (destinationRegion && trek.region?.toLowerCase().includes(destinationRegion))
+          ).length;
           return (
             <Reveal className="destination-tile" key={destination.slug} delay={index * 0.04}>
               <DestinationCard destination={destination} index={index} />
@@ -134,7 +178,7 @@ export function DestinationsPage() {
           );
         })}
 
-        {filteredDestinations.length === 0 && (
+        {!loading && !loadError && filteredDestinations.length === 0 && (
           <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px" }}>
             <MapPin size={36} style={{ color: "#94a3b8", margin: "0 auto 12px" }} />
             <h3 style={{ fontSize: "1.2rem", color: "#1e293b" }}>No destinations match your filter</h3>
@@ -166,20 +210,20 @@ export function DestinationsPage() {
         }}>
           <div>
             <span style={{ fontSize: "0.82rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", color: "#083c34" }}>
-              Looking for Regional Portals?
+              Browse by region
             </span>
             <h3 style={{ fontSize: "1.45rem", fontWeight: "700", color: "#0f172a", marginTop: "4px" }}>
-              Explore Nepal’s 5 Mountain Territories
+              Explore regions in our database
             </h3>
             <p style={{ color: "#475569", maxWidth: "600px", marginTop: "6px", fontSize: "0.95rem" }}>
-              Browse dedicated landing pages for Everest, Annapurna, Langtang, Manaslu, and Mustang with trail grading and altitude breakdowns.
+              Open a regional guide to see its published destinations and treks.
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
             {regions.map((reg) => (
               <Link
                 key={reg.id || reg.slug}
-                to={`/regions/${reg.id || reg.slug}`}
+                to={`/regions/${reg.slug}`}
                 className="button button-small button-outline"
                 style={{ backgroundColor: "#ffffff" }}
               >
@@ -201,7 +245,7 @@ export function DestinationsPage() {
       </section>
 
       <div className="section-wrap data-disclaimer">
-        <span className="demo-dot" /> High mountain destinations are subject to seasonal weather and altitude precautions. Always trek with certified Sherpa guides.
+        <span className="demo-dot" /> Mountain conditions change with the season. Check current local guidance before travel.
       </div>
     </Page>
   );

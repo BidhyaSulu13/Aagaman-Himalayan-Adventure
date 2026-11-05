@@ -28,12 +28,18 @@ export async function getDestinationBySlug(req, res, next) {
       });
     }
 
+    const trekMatch = [
+      { destination: destination._id },
+      { slug: { $in: destination.trekSlugs || [] } },
+    ];
+    if (destination.region) {
+      trekMatch.push({ region: destination.region });
+    }
+
     const treks = await Trek.find({
-      $or: [
-        { destination: destination._id },
-        { region: { $regex: destination.name, $options: "i" } },
-      ],
+      $or: trekMatch,
       published: true,
+      isArchived: { $ne: true },
     });
 
     res.json({

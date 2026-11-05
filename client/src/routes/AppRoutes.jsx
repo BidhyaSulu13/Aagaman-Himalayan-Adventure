@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { Footer } from "../components/layout/Footer.jsx";
 import { Header } from "../components/layout/Header.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const AboutPage = lazy(() =>
   import("../pages/public/About.jsx").then((module) => ({ default: module.AboutPage })),
@@ -102,6 +103,27 @@ function ScrollToTop() {
   return null;
 }
 
+function RequireAuth({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <div className="route-loading" role="status">Checking your account...</div>;
+  }
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo: `${location.pathname}${location.search}` }}
+      />
+    );
+  }
+
+  return children;
+}
+
 export default function AppRoutes() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
@@ -126,6 +148,7 @@ export default function AppRoutes() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/auth/email/:token" element={<AuthPage mode="email-link" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="/forgot-password" element={<AuthPage mode="forgot" />} />
             <Route path="/reset-password/:token" element={<AuthPage mode="reset" />} />
@@ -133,12 +156,12 @@ export default function AppRoutes() {
             <Route path="/review/verify/:token" element={<ReviewVerificationPage />} />
             <Route path="/dashboard" element={<TravelerDashboard />} />
             <Route path="/account" element={<TravelerDashboard />} />
-            <Route path="/booking/:slug" element={<BookingPage />} />
-            <Route path="/treks/:slug/book" element={<BookingPage />} />
-            <Route path="/trip-booking" element={<BookingPage />} />
-            <Route path="/customize-trip" element={<CustomizeTripPage />} />
-            <Route path="/treks/:slug/customize" element={<CustomizeTripPage />} />
-            <Route path="/saved" element={<SavedPage />} />
+            <Route path="/booking/:slug" element={<RequireAuth><BookingPage /></RequireAuth>} />
+            <Route path="/treks/:slug/book" element={<RequireAuth><BookingPage /></RequireAuth>} />
+            <Route path="/trip-booking" element={<RequireAuth><BookingPage /></RequireAuth>} />
+            <Route path="/customize-trip" element={<RequireAuth><CustomizeTripPage /></RequireAuth>} />
+            <Route path="/treks/:slug/customize" element={<RequireAuth><CustomizeTripPage /></RequireAuth>} />
+            <Route path="/saved" element={<RequireAuth><SavedPage /></RequireAuth>} />
             <Route path="/privacy" element={<PolicyPage kind="privacy" />} />
             <Route path="/terms" element={<PolicyPage kind="terms" />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />

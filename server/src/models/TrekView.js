@@ -28,6 +28,12 @@ const trekViewSchema = new Schema(
       ref: "User",
       default: null,
     },
+    verificationStatus: {
+      type: String,
+      enum: ["Unverified", "Verified Trekker"],
+      default: "Unverified",
+      index: true,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -44,4 +50,3 @@ trekViewSchema.index({ trek: 1, identifier: 1, createdAt: -1 });
 
 export const TrekView = model("TrekView", trekViewSchema);
 export default TrekView;
-

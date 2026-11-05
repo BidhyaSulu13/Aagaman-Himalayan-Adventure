@@ -25,11 +25,14 @@ import {
 } from "lucide-react";
 import { Page } from "../../components/common/Page.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useFavorites } from "../../context/FavoritesContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { api } from "../../services/api.js";
+import { getDepartureStatus } from "../../services/departures.js";
 
 export function TravelerDashboard() {
   const { user, loading: authLoading, logout, updateProfile, changePassword } = useAuth();
+  const { savedTreks, loading: favoritesLoading, error: favoritesError } = useFavorites();
   const notify = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,12 +42,11 @@ export function TravelerDashboard() {
   const requestedTab = searchParams.get("tab");
   const requestedBooking = searchParams.get("booking");
   const [activeTab, setActiveTab] = useState(
-    ["overview", "bookings", "saved", "requests", "profile", "settings"].includes(requestedTab)
+    ["overview", "bookings", "reviews", "saved", "requests", "profile", "settings"].includes(requestedTab)
       ? requestedTab
       : "overview"
   );
   const [bookings, setBookings] = useState([]);
-  const [savedTreks, setSavedTreks] = useState([]);
   const [tripRequests, setTripRequests] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
@@ -75,9 +77,19 @@ export function TravelerDashboard() {
   });
 
   useEffect(() => {
+    if (["overview", "bookings", "reviews", "saved", "requests", "profile", "settings"].includes(requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
+
+  useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      if (!guestBooking) navigate("/login");
+      if (!guestBooking) {
+        navigate("/login", {
+          state: { returnTo: `${location.pathname}${location.search}` },
+        });
+      }
       else setLoadingData(false);
       return;
     }
@@ -91,15 +103,14 @@ export function TravelerDashboard() {
       emergencyPhone: user.profile?.emergencyContact?.phone || "",
     });
 
-    // Fetch traveler's bookings, saved treks, and trip requests
+    // Fetch traveler's bookings and trip requests.
     setLoadingData(true);
     setDashboardError("");
     Promise.allSettled([
       api.bookings.getMy(),
-      api.favorites.get(),
       api.tripRequests.getMy(),
     ])
-      .then(([bookingsRes, favsRes, requestsRes]) => {
+      .then(([bookingsRes, requestsRes]) => {
         if (bookingsRes.status === "fulfilled" && bookingsRes.value?.success) {
           setBookings(bookingsRes.value.bookings || []);
         } else {
@@ -109,9 +120,6 @@ export function TravelerDashboard() {
               : "The booking service returned an invalid response."
           );
         }
-        if (favsRes.status === "fulfilled" && favsRes.value?.success) {
-          setSavedTreks(favsRes.value.treks || []);
-        }
         if (requestsRes.status === "fulfilled" && requestsRes.value?.success) {
           setTripRequests(requestsRes.value.tripRequests || []);
         }
@@ -119,7 +127,33 @@ export function TravelerDashboard() {
       .finally(() => {
         setLoadingData(false);
       });
-  }, [user, authLoading, navigate, refreshKey, guestBooking]);
+  }, [user, authLoading, navigate, refreshKey, guestBooking, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!user || guestBooking) return undefined;
+
+    const refreshDepartureStatuses = () => {
+      if (document.visibilityState !== "visible") return;
+      api.bookings.getMy()
+        .then((response) => {
+          if (response.success && Array.isArray(response.bookings)) {
+            setBookings(response.bookings);
+          }
+        })
+        .catch((error) => {
+          console.error("Unable to refresh traveler departure statuses:", error.message);
+        });
+    };
+
+    const intervalId = window.setInterval(refreshDepartureStatuses, 30_000);
+    window.addEventListener("focus", refreshDepartureStatuses);
+    document.addEventListener("visibilitychange", refreshDepartureStatuses);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshDepartureStatuses);
+      document.removeEventListener("visibilitychange", refreshDepartureStatuses);
+    };
+  }, [user, guestBooking]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -200,20 +234,22 @@ export function TravelerDashboard() {
     }
   };
 
-  if (authLoading || !user) return null;
-
   const dashboardBooking = requestedBooking
     ? bookings.find((booking) => booking.bookingReference === requestedBooking)
     : null;
 
   useEffect(() => {
-    if (!loadingData && dashboardBooking) {
-      document.getElementById(`booking-${dashboardBooking.bookingReference}`)
+    const bookingToFocus = dashboardBooking ||
+      (activeTab === "bookings" && reviewingBookingId
+        ? bookings.find((booking) => booking._id === reviewingBookingId)
+        : null);
+    if (!loadingData && bookingToFocus) {
+      document.getElementById(`booking-${bookingToFocus.bookingReference}`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [loadingData, dashboardBooking]);
+  }, [loadingData, dashboardBooking, activeTab, reviewingBookingId, bookings]);
 
-  if (!user && guestBooking) {
+  if (!authLoading && !user && guestBooking) {
     return (
       <Page className="traveler-dashboard-page">
         <section className="guest-booking-dashboard">
@@ -239,10 +275,29 @@ export function TravelerDashboard() {
             {guestBooking.trekSlug && <Link className="button button-dark" to={`/treks/${guestBooking.trekSlug}`}>View trek details</Link>}
             <Link className="button button-orange" to="/treks">Explore more treks</Link>
           </div>
+          <div className="guest-dashboard-signin">
+            <p>Verify this booking email to see this reservation in your traveler dashboard and leave a review after your trek.</p>
+            <Link
+              to="/login"
+              state={{
+                email: guestBooking.email,
+                returnTo: `/dashboard?tab=bookings&booking=${encodeURIComponent(guestBooking.bookingReference)}`,
+              }}
+            >
+              Sign in with your booking email
+            </Link>
+          </div>
         </section>
       </Page>
     );
   }
+
+  if (authLoading || !user) return null;
+
+  const submittedReviews = bookings.filter((booking) => booking.review);
+  const reviewableBookings = bookings.filter(
+    (booking) => booking.bookingStatus === "Completed" && !booking.review
+  );
 
   return (
     <Page className="traveler-dashboard-page">
@@ -300,6 +355,13 @@ export function TravelerDashboard() {
                 onClick={() => setActiveTab("bookings")}
               >
                 <Calendar size={18} /> My Bookings ({bookings.length})
+              </button>
+              <button
+                type="button"
+                className={`dash-nav-btn${activeTab === "reviews" ? " is-active" : ""}`}
+                onClick={() => setActiveTab("reviews")}
+              >
+                <MessageSquare size={18} /> My Reviews ({submittedReviews.length})
               </button>
               <button
                 type="button"
@@ -425,6 +487,11 @@ export function TravelerDashboard() {
                           <span className={`status-tag status-${(b.bookingStatus || "requested").toLowerCase().replace(/\s+/g, "-")}`}>
                             {b.bookingStatus}
                           </span>
+                          {b.departure && (
+                            <span className={`status-tag status-${getDepartureStatus(b.departure).toLowerCase().replace(/\s+/g, "-")}`}>
+                              Departure: {getDepartureStatus(b.departure)}
+                            </span>
+                          )}
                         </div>
                         <div className="booking-card-meta">
                           <span><Calendar size={14} /> Start: {b.departure?.startDate ? new Date(b.departure.startDate).toDateString() : "Flexible"}</span>
@@ -478,6 +545,11 @@ export function TravelerDashboard() {
                             <span className={`payment-tag pay-${(b.paymentStatus || "unpaid").toLowerCase()}`}>
                               Payment: {b.paymentStatus}
                             </span>
+                            {b.departure && (
+                              <span className={`status-tag status-${getDepartureStatus(b.departure).toLowerCase().replace(/\s+/g, "-")}`}>
+                                Departure: {getDepartureStatus(b.departure)}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -486,6 +558,14 @@ export function TravelerDashboard() {
                           <span><User size={14} /> Travelers: {b.numberOfTravelers}</span>
                           <span><DollarSign size={14} /> Total: ${b.totalAmount} USD</span>
                         </div>
+                        {b.departure && getDepartureStatus(b.departure) === "Cancelled" && (
+                          <p className="booking-notes-preview" role="status">
+                            This departure was cancelled. Your booking and payment history are preserved; our team will contact you about next steps.
+                          </p>
+                        )}
+                        {b.departure && getDepartureStatus(b.departure) === "Completed" && (
+                          <p className="booking-notes-preview" role="status">Past trip · This departure is completed.</p>
+                        )}
 
                         {b.notes && (
                           <p className="booking-notes-preview"><strong>Notes:</strong> {b.notes}</p>
@@ -588,6 +668,65 @@ export function TravelerDashboard() {
               </div>
             )}
 
+            {activeTab === "reviews" && (
+              <div className="dash-tab-pane">
+                <h2>My Reviews</h2>
+                <p className="dash-section-desc">After your trek’s departure ends, an admin marks the booking Completed in Admin Console → Bookings. You can then submit your experience here; reviews are published after approval.</p>
+                {submittedReviews.length === 0 && reviewableBookings.length === 0 ? (
+                  <div className="dash-empty-state">
+                    <MessageSquare size={36} />
+                    <h4>No reviews yet</h4>
+                    <p>After a trek is marked completed, you can share your experience here.</p>
+                    <Link to="/treks" className="button button-orange button-small">Explore Treks</Link>
+                  </div>
+                ) : (
+                  <div className="requests-list">
+                    {submittedReviews.map((booking) => (
+                      <article key={booking.review._id || booking._id} className="request-card">
+                        <div className="request-card-header">
+                          <strong>{booking.trek?.title || "Himalayan Journey"}</strong>
+                          <span className="request-status-pill">
+                            {booking.review.moderationStatus === "approved"
+                              ? "Published"
+                              : booking.review.moderationStatus === "rejected"
+                                ? "Not approved"
+                                : "Awaiting approval"}
+                          </span>
+                        </div>
+                        <p className="my-review-rating" aria-label={`${booking.review.rating} out of 5 stars`}>
+                          {"★".repeat(Math.max(0, Math.min(5, Number(booking.review.rating) || 0)))}
+                          <span>{"☆".repeat(5 - Math.max(0, Math.min(5, Number(booking.review.rating) || 0)))}</span>
+                        </p>
+                        <h3>{booking.review.title}</h3>
+                        <p>{booking.review.comment}</p>
+                        <small className="request-date">Booking reference: {booking.bookingReference}</small>
+                      </article>
+                    ))}
+                    {reviewableBookings.map((booking) => (
+                      <article key={booking._id} className="request-card">
+                        <div className="request-card-header">
+                          <strong>{booking.trek?.title || "Himalayan Journey"}</strong>
+                          <span className="request-status-pill">Review available</span>
+                        </div>
+                        <p>Your trek is complete. Share your experience with future travelers.</p>
+                        <button
+                          type="button"
+                          className="view-trek-btn"
+                          onClick={() => {
+                            setReviewingBookingId(booking._id);
+                            setReviewForm({ rating: 5, title: "", comment: "" });
+                            setActiveTab("bookings");
+                          }}
+                        >
+                          <Star size={15} /> Write a Review
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 3. SAVED TREKS TAB */}
             {activeTab === "saved" && (
               <div className="dash-tab-pane">
@@ -595,7 +734,11 @@ export function TravelerDashboard() {
                 <p className="dash-section-desc">Handpicked routes you have saved for future expeditions.</p>
 
                 {savedTreks.length === 0 ? (
-                  <div className="dash-empty-state">
+                  favoritesLoading ? (
+                    <div className="dashboard-inline-loading" role="status">Loading your saved treks…</div>
+                  ) : favoritesError ? (
+                    <div className="dashboard-inline-error" role="alert">{favoritesError}</div>
+                  ) : <div className="dash-empty-state">
                     <Heart size={36} />
                     <h4>Your wishlist is empty</h4>
                     <p>Browse our catalog and tap the heart icon on any trek to save it to your account.</p>

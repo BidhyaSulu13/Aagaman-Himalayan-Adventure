@@ -139,7 +139,11 @@ export async function getTreks(req, res, next) {
 export async function getTrekBySlug(req, res, next) {
   try {
     const { slug } = req.params;
-    const trek = await Trek.findOne({ slug })
+    const trek = await Trek.findOne({
+      slug,
+      published: true,
+      isArchived: { $ne: true },
+    })
       .populate("destination", "name slug region description coordinates");
 
     if (!trek) {
@@ -149,11 +153,11 @@ export async function getTrekBySlug(req, res, next) {
       });
     }
 
-    // Fetch upcoming guaranteed or available departures
+    // Fetch upcoming published departures, including dates that have filled or closed.
     const [departures, reviewStats] = await Promise.all([Departure.find({
       trek: trek._id,
-      startDate: { $gte: new Date() },
-      status: { $in: ["Available", "Guaranteed", "Filling Fast"] },
+      startDate: { $gte: new Date(new Date().setUTCHours(0, 0, 0, 0)) },
+      published: { $ne: false },
     }).sort({ startDate: 1 }), getVerifiedReviewStats([trek._id])]);
     const officialStats = reviewStats.get(trek._id.toString());
     trek.rating = officialStats?.rating ?? 0;

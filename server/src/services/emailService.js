@@ -49,49 +49,57 @@ export async function sendBookingConfirmationEmail({
   bookingReference,
   trekTitle,
   startDate,
+  travelers,
+  bookingStatus,
+  paymentStatus,
   totalAmount,
 }) {
   try {
     const t = getTransporter();
-    const reviewRequestUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/review/request`;
+    const dashboardUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/login`;
     const safeTravelerName = escapeHtml(travelerName);
     const safeTrekTitle = escapeHtml(trekTitle);
     const safeBookingReference = escapeHtml(bookingReference);
     const safeStartDate = escapeHtml(startDate);
+    const safeTravelers = escapeHtml(travelers);
+    const safeBookingStatus = escapeHtml(bookingStatus);
+    const safePaymentStatus = escapeHtml(paymentStatus);
     const safeTotalAmount = escapeHtml(totalAmount);
-    const safeReviewRequestUrl = escapeHtml(reviewRequestUrl);
+    const safeDashboardUrl = escapeHtml(dashboardUrl);
     const mailOptions = {
       from: process.env.SMTP_FROM || "no-reply@agaaman.com",
       to: email,
-      subject: `Trek Booking Confirmation - ${bookingReference}`,
+      subject: `Booking request received - ${bookingReference}`,
       text: `Namaste ${travelerName},
 
-Your booking request for "${trekTitle}" has been received!
+Your booking request for "${trekTitle}" has been received.
 
 Booking Reference: ${bookingReference}
-Departure Date: ${startDate}
-Total Amount: $${totalAmount} USD
-Status: Requested / Pending Guide Confirmation
+Departure date: ${startDate}
+Travelers: ${travelers}
+Estimated total: $${totalAmount} USD
+Booking status: ${bookingStatus}
+Payment status: ${paymentStatus}
 
-Our Himalayan lead operations team is reviewing your dates and mountain permits.
-Keep this booking reference for your records. If you have an account, you can view the reservation in your Traveler Dashboard.
-After your trek is completed, request a secure review link at: ${reviewRequestUrl}
-No traveler account is required to submit a review.
+This is a booking request, not a confirmed reservation or payment receipt. Our team will contact you with any updates.
+To view this booking in your dashboard, sign in using this booking email (Google sign-in or a one-time email link): ${dashboardUrl}
+Keep your booking reference for your records.
 
-Warm mountain regards,
-The Agaaman Himalayan Expeditions Team`,
+The Agaaman Himalayan Adventure Team`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
           <h2 style="color: #ea580c; margin-top: 0;">Namaste ${safeTravelerName},</h2>
-          <p>Your booking request for <strong>${safeTrekTitle}</strong> has been received by our expedition desk!</p>
+          <p>Your booking request for <strong>${safeTrekTitle}</strong> has been received.</p>
           <div style="background: #f8fafc; padding: 16px; border-radius: 6px; margin: 16px 0;">
             <p style="margin: 4px 0;"><strong>Booking Reference:</strong> <span style="color: #ea580c; font-weight: bold;">${safeBookingReference}</span></p>
             <p style="margin: 4px 0;"><strong>Departure Date:</strong> ${safeStartDate}</p>
+            <p style="margin: 4px 0;"><strong>Travelers:</strong> ${safeTravelers}</p>
             <p style="margin: 4px 0;"><strong>Total Amount:</strong> $${safeTotalAmount} USD</p>
-            <p style="margin: 4px 0;"><strong>Status:</strong> Requested (Pending Review)</p>
+            <p style="margin: 4px 0;"><strong>Booking status:</strong> ${safeBookingStatus}</p>
+            <p style="margin: 4px 0;"><strong>Payment status:</strong> ${safePaymentStatus}</p>
           </div>
-          <p>Our Kathmandu operations team and local Sherpa guides are preparing your permit allocations. You will receive an update once confirmed.</p>
-          <p>After your trek is completed, <a href="${safeReviewRequestUrl}">request a secure review link</a> using your booking reference and booking email. No traveler account is required.</p>
+          <p>This is a booking request, not a confirmed reservation or payment receipt. Our team will contact you with any updates.</p>
+          <p><a href="${safeDashboardUrl}">Sign in to your traveler dashboard</a> using this booking email. You can use Google sign-in or request a one-time email sign-in link.</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
           <p style="font-size: 13px; color: #64748b;">Agaaman: A Himalayan Adventure · Thamel, Kathmandu, Nepal</p>
         </div>
@@ -102,6 +110,57 @@ The Agaaman Himalayan Expeditions Team`,
   } catch (err) {
     console.error("Failed to send booking email notification:", err.message);
   }
+}
+
+export async function sendDepartureStatusEmail({
+  email,
+  travelerName,
+  bookingReference,
+  trekTitle,
+  startDate,
+  endDate,
+  departureStatus,
+}) {
+  const dashboardUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/dashboard?tab=bookings&booking=${encodeURIComponent(bookingReference)}`;
+  const safeTravelerName = escapeHtml(travelerName || "Traveler");
+  const safeBookingReference = escapeHtml(bookingReference);
+  const safeTrekTitle = escapeHtml(trekTitle);
+  const safeStartDate = escapeHtml(startDate);
+  const safeEndDate = escapeHtml(endDate);
+  const safeStatus = escapeHtml(departureStatus);
+  const safeDashboardUrl = escapeHtml(dashboardUrl);
+  const cancelled = departureStatus === "Cancelled";
+  const subject = `Departure ${departureStatus.toLowerCase()} - ${bookingReference}`;
+  const message = cancelled
+    ? `We are sorry to inform you that this fixed departure has been cancelled. Your booking and payment history remain available in your traveler dashboard. Please contact our team to discuss next steps.`
+    : `Your fixed departure has been updated to ${departureStatus}.`;
+
+  await getTransporter().sendMail({
+    from: process.env.SMTP_FROM || "no-reply@agaaman.com",
+    to: email,
+    subject,
+    text: `Namaste ${travelerName || "Traveler"},\n\n${message}\n\nTrek: ${trekTitle}\nDeparture: ${startDate} – ${endDate}\nBooking reference: ${bookingReference}\n\nView your booking: ${dashboardUrl}\n\nThe Agaaman Himalayan Adventure Team`,
+    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:8px"><h2 style="color:#083c34">Namaste ${safeTravelerName},</h2><p>${escapeHtml(message)}</p><p><strong>Trek:</strong> ${safeTrekTitle}<br><strong>Departure:</strong> ${safeStartDate} – ${safeEndDate}<br><strong>Booking reference:</strong> ${safeBookingReference}<br><strong>Departure status:</strong> ${safeStatus}</p><p><a href="${safeDashboardUrl}">View your booking in the traveler dashboard</a></p><p style="font-size:13px;color:#64748b">Agaaman: A Himalayan Adventure · Thamel, Kathmandu, Nepal</p></div>`,
+  });
+}
+
+export async function sendLoginLinkEmail({ email, name, token, returnTo }) {
+  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//")
+    ? returnTo
+    : "/dashboard";
+  const loginUrl = `${clientUrl}/auth/email/${encodeURIComponent(token)}?returnTo=${encodeURIComponent(safeReturnTo)}`;
+  const transporter = getTransporter();
+  const safeName = escapeHtml(name);
+  const safeLoginUrl = escapeHtml(loginUrl);
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || "no-reply@agaaman.com",
+    to: email,
+    subject: "Your Agaaman sign-in link",
+    text: `Hello ${name},\n\nUse this one-time link to sign in and view your traveler dashboard:\n${loginUrl}\n\nThe link expires in 15 minutes and can only be used once. If you did not request it, ignore this email.`,
+    html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:8px"><h2>Sign in to Agaaman</h2><p>Hello ${safeName},</p><p>Use this one-time link to sign in and view your traveler dashboard:</p><p><a href="${safeLoginUrl}" style="display:inline-block;padding:12px 18px;background:#083c34;color:#fff;text-decoration:none;border-radius:6px">Open my dashboard</a></p><p style="font-size:13px;color:#64748b">This link expires in 15 minutes and can only be used once. If you did not request it, ignore this email.</p></div>`,
+  });
 }
 
 export async function sendPasswordResetEmail({ email, name, resetToken, clientUrl }) {

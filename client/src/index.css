@@ -6038,6 +6038,15 @@ h2 em {
   line-height: 1.75;
 }
 
+.guide-dynamic-copy {
+  max-width: 900px;
+  margin: 0 0 28px;
+  color: #334155;
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-line;
+}
+
 /* Callout Cards: Sharp, High-Contrast Modern Alert */
 .guide-alert-box {
   display: flex;
@@ -6439,6 +6448,24 @@ h2 em {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.season-card:hover {
+  transform: translateY(-5px);
+  border-color: #0f766e;
+  box-shadow: 0 14px 30px rgba(8, 60, 52, 0.13);
+}
+
+.season-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #0f766e;
 }
 
 .season-card.is-highlighted {
@@ -6514,6 +6541,44 @@ h2 em {
   color: #64748b;
   font-size: 13px;
   font-weight: 600;
+}
+
+.guide-source-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  margin-top: 28px;
+  padding: 18px 22px;
+  border: 1px solid #dbe4e2;
+  border-radius: 10px;
+  background: #f8faf9;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.guide-source-note a {
+  color: #075e52;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.guide-source-note a:hover {
+  color: #ea580c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-card,
+  .guide-feature-card {
+    transition: none;
+  }
+
+  .season-card:hover,
+  .guide-feature-card:hover {
+    transform: none;
+  }
 }
 
 /* FAQ Accordion */
@@ -11026,6 +11091,7 @@ h2 em {
 
 .diff-easy { border-left: 3px solid #10b981; }
 .diff-moderate { border-left: 3px solid #3b82f6; }
+.diff-hard { border-left: 3px solid #f97316; }
 .diff-challenging { border-left: 3px solid #f59e0b; }
 .diff-strenuous { border-left: 3px solid #ef4444; }
 

@@ -28,16 +28,11 @@ export async function getDestinationBySlug(req, res, next) {
       });
     }
 
-    const trekMatch = [
-      { destination: destination._id },
-      { slug: { $in: destination.trekSlugs || [] } },
-    ];
-    if (destination.region) {
-      trekMatch.push({ region: destination.region });
-    }
-
     const treks = await Trek.find({
-      $or: trekMatch,
+      $or: [
+        { slug: { $in: destination.trekSlugs || [] } },
+        { _id: { $in: destination.relatedTreks || [] } },
+      ],
       published: true,
       isArchived: { $ne: true },
     });
@@ -59,7 +54,10 @@ export async function createDestination(req, res, next) {
     if (!data.slug && data.name) {
       data.slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     }
-    const destination = await Destination.create(data);
+    const result = await resolveDestinationTreks(data, true);
+    if (result.error) return res.status(400).json({ success: false, message: result.error });
+    const destinationData = result.data;
+    const destination = await Destination.create(destinationData);
     res.status(201).json({
       success: true,
       destination,
@@ -74,8 +72,11 @@ export async function createDestination(req, res, next) {
 export async function updateDestination(req, res, next) {
   try {
     const { id } = req.params;
-    const destination = await Destination.findByIdAndUpdate(id, req.body, {
-      new: true,
+    const result = await resolveDestinationTreks(req.body);
+    if (result.error) return res.status(400).json({ success: false, message: result.error });
+    const update = result.data;
+    const destination = await Destination.findByIdAndUpdate(id, update, {
+      returnDocument: "after",
       runValidators: true,
     });
     if (!destination) {
@@ -89,6 +90,36 @@ export async function updateDestination(req, res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+async function resolveDestinationTreks(data, required = false) {
+  if (!Array.isArray(data.trekSlugs)) {
+    return required
+      ? { error: "Every destination must link to between 1 and 3 published treks." }
+      : { data };
+  }
+
+  const slugs = [...new Set(data.trekSlugs.filter((slug) => typeof slug === "string").map((slug) => slug.trim()).filter(Boolean))];
+  if (slugs.length < 1 || slugs.length > 3) {
+    return { error: "Every destination must link to between 1 and 3 published treks." };
+  }
+
+  const treks = await Trek.find({
+    slug: { $in: slugs },
+    published: true,
+    isArchived: { $ne: true },
+  }).select("_id slug");
+  if (treks.length !== slugs.length) {
+    return { error: "Select 1 to 3 existing, published treks for this destination." };
+  }
+
+  return {
+    data: {
+      ...data,
+      trekSlugs: slugs,
+      relatedTreks: treks.map((trek) => trek._id),
+    },
+  };
 }
 
 // DELETE /api/destinations/:id (Admin)

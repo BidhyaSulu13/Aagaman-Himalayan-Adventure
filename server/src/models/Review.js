@@ -31,6 +31,11 @@ const reviewSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Booking",
     },
+    departure: {
+      type: Schema.Types.ObjectId,
+      ref: "Departure",
+      index: true,
+    },
     title: {
       type: String,
       default: "",

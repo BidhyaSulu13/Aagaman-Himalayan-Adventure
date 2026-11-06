@@ -36,31 +36,31 @@ const guideSublinks = [
     title: "Altitude Safety & Acclimatization",
     desc: "General planning reminders and ways to prepare for altitude.",
     icon: Mountain,
-    to: "/trekking-guide",
+    to: "/trekking-guides/altitude-acclimatization",
   },
   {
     title: "Permits & Route Requirements",
     desc: "Confirm current permits, costs, and guide requirements with authorities.",
     icon: FileText,
-    to: "/trekking-guide",
+    to: "/trekking-guides/permits-and-tims",
   },
   {
     title: "Interactive Gear Checklist",
     desc: "Full packing checklist with layering essentials.",
     icon: Package,
-    to: "/trekking-guide",
+    to: "/trekking-guides/packing-checklist",
   },
   {
     title: "Seasons & Weather",
     desc: "Conditions vary; check current forecasts and route status.",
     icon: Sun,
-    to: "/trekking-guide",
+    to: "/trekking-guides/seasons-and-weather",
   },
   {
     title: "Culture & Trail Etiquette",
     desc: "Learn local customs from the communities you visit.",
     icon: HeartHandshake,
-    to: "/trekking-guide",
+    to: "/trekking-guides/local-culture-and-etiquette",
   },
 ];
 

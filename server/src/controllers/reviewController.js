@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { Booking } from "../models/Booking.js";
 import { Review } from "../models/Review.js";
 import { Trek } from "../models/Trek.js";
+import { User } from "../models/User.js";
 import { recalculateTrekRating } from "../services/rankingService.js";
 import { sendReviewVerificationEmail } from "../services/emailService.js";
 
@@ -149,6 +150,7 @@ async function findBookingForReviewToken(token) {
     bookingStatus: "Completed",
   })
     .select("+reviewVerificationTokenHash +reviewVerificationEmail +reviewVerificationExpiresAt")
+    .populate("user", "_id")
     .populate("trek", "title slug");
 }
 
@@ -208,11 +210,17 @@ export async function createVerifiedReview(req, res, next) {
     const traveler = booking.travelerDetails.find(
       (detail) => detail.email.toLowerCase() === booking.reviewVerificationEmail
     );
+    const travelerAccount = booking.user || await User.findOne({
+      email: booking.reviewVerificationEmail,
+      role: "traveler",
+    }).select("_id");
     const review = await Review.create({
+      user: travelerAccount?._id || null,
       name: traveler?.fullName || "Completed trek traveler",
       email: booking.reviewVerificationEmail,
       trek: booking.trek._id || booking.trek,
       booking: booking._id,
+      departure: booking.departure,
       title,
       rating,
       comment,
@@ -231,6 +239,9 @@ export async function createVerifiedReview(req, res, next) {
       message: "Your verified review is submitted and pending admin approval.",
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: "A review already exists for this booking." });
+    }
     return next(error);
   }
 }
@@ -273,6 +284,7 @@ export async function createReview(req, res, next) {
       email: req.user.email,
       trek: booking.trek,
       booking: booking._id,
+      departure: booking.departure,
       title,
       rating,
       comment,
@@ -285,6 +297,7 @@ export async function createReview(req, res, next) {
       { path: "user", select: "name avatar nationality" },
       { path: "trek", select: "title slug" },
       { path: "booking", select: "bookingReference" },
+      { path: "departure", select: "startDate endDate" },
     ]);
     return res.status(201).json({
       success: true,
@@ -309,7 +322,8 @@ export async function getAllReviews(req, res, next) {
       .select("+email")
       .populate("user", "name email avatar")
       .populate("trek", "title slug")
-      .populate("booking", "bookingReference bookingStatus travelerDetails numberOfTravelers totalAmount createdAt")
+      .populate("booking", "bookingReference bookingStatus travelerDetails numberOfTravelers totalAmount createdAt departure")
+      .populate("departure", "startDate endDate")
       .sort({ createdAt: -1 });
 
     return res.json({ success: true, count: reviews.length, reviews });

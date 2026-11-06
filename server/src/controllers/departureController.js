@@ -1,6 +1,7 @@
 import { Booking } from "../models/Booking.js";
 import { Departure } from "../models/Departure.js";
 import { Trek } from "../models/Trek.js";
+import { notifyTrekCompleted } from "../services/bookingEmailService.js";
 import { sendDepartureStatusEmail } from "../services/emailService.js";
 import { getNepalDateKey, getNepalDayStart, getUtcDateKey } from "../utils/nepalTime.js";
 
@@ -15,6 +16,14 @@ function normalizeDateOnly(value) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return new Date(`${parsed.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
+function calculateEndDate(startDate, durationDays) {
+  const start = normalizeDateOnly(startDate);
+  const duration = Number(durationDays);
+  if (!start || !Number.isInteger(duration) || duration < 1) return null;
+  start.setUTCDate(start.getUTCDate() + duration);
+  return start;
 }
 
 function parseDepartureDates({ startDate, endDate, bookingClosingDate }) {
@@ -62,7 +71,9 @@ function mapDeparturePayload(body, dates, trekId) {
     originalPrice: body.originalPrice === "" || body.originalPrice == null
       ? null
       : Number(body.originalPrice),
-    status: body.status === "Filling Fast" ? "Available" : body.status || "Available",
+    status: ["Filling Fast", "Open", "Limited Seats", "Fully Booked", "In Progress"].includes(body.status)
+      ? "Available"
+      : body.status || "Available",
     published: body.published === undefined ? true : Boolean(body.published),
   };
 }
@@ -168,7 +179,23 @@ export async function getDepartureById(req, res, next) {
 export async function getAdminDepartures(req, res, next) {
   try {
     const departures = await findDepartures(req.query, true);
-    res.json({ success: true, count: departures.length, departures });
+    const bookingCounts = departures.length
+      ? await Booking.aggregate([
+          { $match: { departure: { $in: departures.map((departure) => departure._id) } } },
+          { $group: { _id: "$departure", count: { $sum: 1 } } },
+        ])
+      : [];
+    const countsByDeparture = new Map(
+      bookingCounts.map(({ _id, count }) => [_id.toString(), count])
+    );
+    res.json({
+      success: true,
+      count: departures.length,
+      departures: departures.map((departure) => ({
+        ...departure.toJSON(),
+        bookingCount: countsByDeparture.get(departure._id.toString()) || 0,
+      })),
+    });
   } catch (error) {
     next(error);
   }
@@ -236,11 +263,19 @@ export async function createDeparture(req, res, next) {
       return res.status(404).json({ success: false, message: "Trek not found." });
     }
 
-    const dates = parseDepartureDates(req.body);
+    const trek = await Trek.findById(trekId).select("duration");
+    const endDate = calculateEndDate(req.body.startDate, trek?.duration);
+    if (!endDate) {
+      return res.status(400).json({ success: false, message: "Select a valid start date and trek duration to calculate the finish date." });
+    }
+    const dates = parseDepartureDates({ ...req.body, endDate });
     if (dates.error) return res.status(400).json({ success: false, message: dates.error });
     const values = mapDeparturePayload(req.body, dates, trekId);
     const validationError = validateDepartureValues(values);
     if (validationError) return res.status(400).json({ success: false, message: validationError });
+    if (values.status === "Completed" && getNepalDateKey(dates.end) >= getNepalDateKey()) {
+      return res.status(400).json({ success: false, message: "A departure can be marked Completed only after its end date in Nepal time." });
+    }
 
     const departure = await Departure.create(values);
     await departure.populate("trek", "title slug region");
@@ -274,7 +309,20 @@ export async function updateDeparture(req, res, next) {
     }
 
     const body = { ...departure.toObject(), ...req.body };
-    const dates = parseDepartureDates(body);
+    const trek = await Trek.findById(trekId).select("duration");
+    if (!trek) return res.status(404).json({ success: false, message: "Trek not found." });
+    const scheduleChanged =
+      req.body.startDate !== undefined ||
+      req.body.endDate !== undefined ||
+      req.body.trekId !== undefined ||
+      req.body.trekSlug !== undefined;
+    const endDate = scheduleChanged
+      ? calculateEndDate(body.startDate, trek.duration)
+      : body.endDate;
+    if (!endDate) {
+      return res.status(400).json({ success: false, message: "Select a valid start date and trek duration to calculate the finish date." });
+    }
+    const dates = parseDepartureDates({ ...body, endDate });
     if (dates.error) return res.status(400).json({ success: false, message: dates.error });
     const values = mapDeparturePayload(body, dates, trekId);
     if (req.body.capacity === undefined) values.capacity = departure.capacity;
@@ -291,6 +339,9 @@ export async function updateDeparture(req, res, next) {
     }
     const validationError = validateDepartureValues(values);
     if (validationError) return res.status(400).json({ success: false, message: validationError });
+    if (values.status === "Completed" && getNepalDateKey(dates.end) >= getNepalDateKey()) {
+      return res.status(400).json({ success: false, message: "A departure can be marked Completed only after its end date in Nepal time." });
+    }
 
     const updatedDeparture = await Departure.findOneAndUpdate(
       {
@@ -307,6 +358,19 @@ export async function updateDeparture(req, res, next) {
         success: false,
         message: "Departure capacity changed while saving. Refresh and try again.",
       });
+    }
+    let completedBookings = 0;
+    if (updatedDeparture.status === "Completed" && departure.status !== "Completed") {
+      const completionResult = await Booking.updateMany(
+        { departure: updatedDeparture._id, bookingStatus: "Confirmed" },
+        { $set: { bookingStatus: "Completed" } },
+      );
+      completedBookings = completionResult.modifiedCount || 0;
+      const completed = await Booking.find({
+        departure: updatedDeparture._id,
+        bookingStatus: "Completed",
+      }).select("_id");
+      completed.forEach(({ _id }) => void notifyTrekCompleted(_id));
     }
     let notificationResults = null;
     if (updatedDeparture.status === "Cancelled" && departure.status !== "Cancelled") {
@@ -365,6 +429,7 @@ export async function updateDeparture(req, res, next) {
     res.json({
       success: true,
       departure: updatedDeparture,
+      ...(updatedDeparture.status === "Completed" ? { completedBookings } : {}),
       ...(notificationResults ? { notifications: notificationResults } : {}),
       message: "Departure updated successfully.",
     });
@@ -392,7 +457,19 @@ export async function deleteDeparture(req, res, next) {
         message: "This departure has booking history. Close or cancel it instead of deleting it.",
       });
     }
-    await departure.deleteOne();
+    const deletedDeparture = await Departure.findOneAndDelete({
+      _id: departure._id,
+      $or: [
+        { bookedCount: 0 },
+        { bookedCount: { $exists: false } },
+      ],
+    });
+    if (!deletedDeparture) {
+      return res.status(409).json({
+        success: false,
+        message: "This departure now has reserved seats. Close or cancel it instead of deleting it.",
+      });
+    }
     res.json({ success: true, message: "Departure deleted." });
   } catch (error) {
     next(error);

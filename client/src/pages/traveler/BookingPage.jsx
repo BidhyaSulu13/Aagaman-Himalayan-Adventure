@@ -299,6 +299,10 @@ export function BookingPage() {
                   <td style={{ padding: "10px 0", fontWeight: 600, color: "#0f172a", textAlign: "right" }}>{selectedDate}</td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "10px 0", color: "#64748b" }}>Finish Date:</td>
+                  <td style={{ padding: "10px 0", fontWeight: 600, color: "#0f172a", textAlign: "right" }}>{b.departure?.endDate ? new Date(b.departure.endDate).toLocaleDateString() : "—"}</td>
+                </tr>
+                <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                   <td style={{ padding: "10px 0", color: "#64748b" }}>Participants:</td>
                   <td style={{ padding: "10px 0", fontWeight: 600, color: "#0f172a", textAlign: "right" }}>{b.numberOfTravelers || travelers} Travelers</td>
                 </tr>
@@ -346,6 +350,7 @@ export function BookingPage() {
                   trekSlug: b.trek?.slug || trek.slug,
                   email: travelerInfo.email,
                   startDate: b.departure?.startDate || selectedDate,
+                  endDate: b.departure?.endDate || selectedDeparture?.endDate,
                   numberOfTravelers: b.numberOfTravelers || travelers,
                   totalAmount: b.totalAmount || grandTotal,
                   currency: b.currency || "USD",

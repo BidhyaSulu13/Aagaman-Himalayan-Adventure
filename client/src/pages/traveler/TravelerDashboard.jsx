@@ -57,6 +57,7 @@ export function TravelerDashboard() {
   const [cancelReason, setCancelReason] = useState("");
   const [reviewingBookingId, setReviewingBookingId] = useState(null);
   const [reviewForm, setReviewForm] = useState({ rating: 5, title: "", comment: "" });
+  const [reviewPhotos, setReviewPhotos] = useState([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   // Profile Form state
@@ -213,12 +214,24 @@ export function TravelerDashboard() {
 
   const handleReviewSubmit = async (e, booking) => {
     e.preventDefault();
+    if (reviewPhotos.length > 4 || reviewPhotos.some((photo) => photo.size > 5 * 1024 * 1024)) {
+      notify("Choose up to four photos, each no larger than 5 MB.");
+      return;
+    }
+    if (reviewPhotos.some((photo) => !["image/jpeg", "image/png", "image/webp"].includes(photo.type))) {
+      notify("Review photos must be JPEG, PNG, or WebP images.");
+      return;
+    }
+
     setReviewSubmitting(true);
     try {
-      const response = await api.reviews.create({
-        bookingId: booking._id,
-        ...reviewForm,
-      });
+      const body = new FormData();
+      body.append("bookingId", booking._id);
+      body.append("rating", String(reviewForm.rating));
+      body.append("title", reviewForm.title);
+      body.append("comment", reviewForm.comment);
+      reviewPhotos.forEach((photo) => body.append("photos", photo));
+      const response = await api.reviews.create(body);
       setBookings((previous) =>
         previous.map((item) =>
           item._id === booking._id ? { ...item, review: response.review } : item
@@ -226,6 +239,7 @@ export function TravelerDashboard() {
       );
       setReviewingBookingId(null);
       setReviewForm({ rating: 5, title: "", comment: "" });
+      setReviewPhotos([]);
       notify(response.message || "Review submitted for admin approval.");
     } catch (err) {
       notify(err.message || "Unable to submit your review.");
@@ -233,6 +247,70 @@ export function TravelerDashboard() {
       setReviewSubmitting(false);
     }
   };
+
+  const renderReviewForm = (booking) => (
+    <form className="booking-review-form" onSubmit={(event) => handleReviewSubmit(event, booking)}>
+      <label>
+        Star rating
+        <span className="review-star-picker" role="group" aria-label="Choose a star rating">
+          {[1, 2, 3, 4, 5].map((rating) => (
+            <button
+              key={rating}
+              type="button"
+              aria-label={`${rating} star${rating === 1 ? "" : "s"}`}
+              aria-pressed={reviewForm.rating === rating}
+              onClick={() => setReviewForm({ ...reviewForm, rating })}
+            >
+              <Star size={21} fill={rating <= reviewForm.rating ? "currentColor" : "none"} />
+            </button>
+          ))}
+        </span>
+      </label>
+      <label>
+        Review title
+        <input
+          value={reviewForm.title}
+          maxLength={120}
+          onChange={(event) => setReviewForm({ ...reviewForm, title: event.target.value })}
+          required
+        />
+      </label>
+      <label>
+        Your experience
+        <textarea
+          value={reviewForm.comment}
+          maxLength={2000}
+          onChange={(event) => setReviewForm({ ...reviewForm, comment: event.target.value })}
+          required
+        />
+      </label>
+      <label>
+        Photos (optional, up to 4)
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          onChange={(event) => setReviewPhotos(Array.from(event.target.files || []))}
+        />
+      </label>
+      {reviewPhotos.length > 0 && <small>{reviewPhotos.map((photo) => photo.name).join(", ")}</small>}
+      <div className="booking-review-actions">
+        <button type="submit" className="view-trek-btn" disabled={reviewSubmitting}>
+          {reviewSubmitting ? "Submitting…" : "Submit for approval"}
+        </button>
+        <button
+          type="button"
+          className="cancel-booking-btn"
+          onClick={() => {
+            setReviewingBookingId(null);
+            setReviewPhotos([]);
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
 
   const dashboardBooking = requestedBooking
     ? bookings.find((booking) => booking.bookingReference === requestedBooking)
@@ -266,6 +344,7 @@ export function TravelerDashboard() {
           <dl className="guest-booking-details">
             <div><dt>Trek</dt><dd>{guestBooking.trekTitle}</dd></div>
             <div><dt>Departure</dt><dd>{guestBooking.startDate ? new Date(guestBooking.startDate).toLocaleDateString() : "Flexible"}</dd></div>
+            {guestBooking.endDate && <div><dt>Finish</dt><dd>{new Date(guestBooking.endDate).toLocaleDateString()}</dd></div>}
             <div><dt>Travelers</dt><dd>{guestBooking.numberOfTravelers}</dd></div>
             <div><dt>Booking status</dt><dd>{guestBooking.bookingStatus}</dd></div>
             <div><dt>Payment status</dt><dd>{guestBooking.paymentStatus}</dd></div>
@@ -495,6 +574,7 @@ export function TravelerDashboard() {
                         </div>
                         <div className="booking-card-meta">
                           <span><Calendar size={14} /> Start: {b.departure?.startDate ? new Date(b.departure.startDate).toDateString() : "Flexible"}</span>
+                          {b.departure?.endDate && <span><Calendar size={14} /> Finish: {new Date(b.departure.endDate).toDateString()}</span>}
                           <span><User size={14} /> Travelers: {b.numberOfTravelers} PAX</span>
                           <span><DollarSign size={14} /> Total: ${b.totalAmount} USD</span>
                         </div>
@@ -555,6 +635,7 @@ export function TravelerDashboard() {
 
                         <div className="booking-card-meta">
                           <span><Calendar size={14} /> Start Date: {b.departure?.startDate ? new Date(b.departure.startDate).toDateString() : "Flexible"}</span>
+                          {b.departure?.endDate && <span><Calendar size={14} /> Finish Date: {new Date(b.departure.endDate).toDateString()}</span>}
                           <span><User size={14} /> Travelers: {b.numberOfTravelers}</span>
                           <span><DollarSign size={14} /> Total: ${b.totalAmount} USD</span>
                         </div>
@@ -576,57 +657,14 @@ export function TravelerDashboard() {
                             {b.review ? (
                               <p className="booking-review-status">
                                 <Star size={15} fill="currentColor" />
-                                Review submitted — {b.review.moderationStatus === "approved"
-                                  ? "published"
+                                Review: {b.review.moderationStatus === "approved"
+                                  ? "Published"
                                   : b.review.moderationStatus === "rejected"
-                                    ? "not approved"
-                                    : "awaiting admin approval"}
+                                    ? "Rejected"
+                                    : "Pending Approval"}
                               </p>
                             ) : reviewingBookingId === b._id ? (
-                              <form className="booking-review-form" onSubmit={(e) => handleReviewSubmit(e, b)}>
-                                <label>
-                                  Star rating
-                                  <span className="review-star-picker" role="group" aria-label="Choose a star rating">
-                                    {[1, 2, 3, 4, 5].map((rating) => (
-                                      <button
-                                        key={rating}
-                                        type="button"
-                                        aria-label={`${rating} star${rating === 1 ? "" : "s"}`}
-                                        aria-pressed={reviewForm.rating === rating}
-                                        onClick={() => setReviewForm({ ...reviewForm, rating })}
-                                      >
-                                        <Star size={21} fill={rating <= reviewForm.rating ? "currentColor" : "none"} />
-                                      </button>
-                                    ))}
-                                  </span>
-                                </label>
-                                <label>
-                                  Review title
-                                  <input
-                                    value={reviewForm.title}
-                                    maxLength={120}
-                                    onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
-                                    required
-                                  />
-                                </label>
-                                <label>
-                                  Your experience
-                                  <textarea
-                                    value={reviewForm.comment}
-                                    maxLength={2000}
-                                    onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
-                                    required
-                                  />
-                                </label>
-                                <div className="booking-review-actions">
-                                  <button type="submit" className="view-trek-btn" disabled={reviewSubmitting}>
-                                    {reviewSubmitting ? "Submitting…" : "Submit for approval"}
-                                  </button>
-                                  <button type="button" className="cancel-booking-btn" onClick={() => setReviewingBookingId(null)}>
-                                    Cancel
-                                  </button>
-                                </div>
-                              </form>
+                              renderReviewForm(b)
                             ) : (
                               <button
                                 type="button"
@@ -634,6 +672,7 @@ export function TravelerDashboard() {
                                 onClick={() => {
                                   setReviewingBookingId(b._id);
                                   setReviewForm({ rating: 5, title: "", comment: "" });
+                                  setReviewPhotos([]);
                                 }}
                               >
                                 <Star size={15} /> Write a Review
@@ -671,7 +710,7 @@ export function TravelerDashboard() {
             {activeTab === "reviews" && (
               <div className="dash-tab-pane">
                 <h2>My Reviews</h2>
-                <p className="dash-section-desc">After your trek’s departure ends, an admin marks the booking Completed in Admin Console → Bookings. You can then submit your experience here; reviews are published after approval.</p>
+                <p className="dash-section-desc">After your trek ends, an admin confirms the departure as Completed in Admin Console → Group Departures. Confirmed bookings then become eligible for reviews, which are published after approval.</p>
                 {submittedReviews.length === 0 && reviewableBookings.length === 0 ? (
                   <div className="dash-empty-state">
                     <MessageSquare size={36} />
@@ -689,8 +728,8 @@ export function TravelerDashboard() {
                             {booking.review.moderationStatus === "approved"
                               ? "Published"
                               : booking.review.moderationStatus === "rejected"
-                                ? "Not approved"
-                                : "Awaiting approval"}
+                                ? "Rejected"
+                                : "Pending Approval"}
                           </span>
                         </div>
                         <p className="my-review-rating" aria-label={`${booking.review.rating} out of 5 stars`}>
@@ -706,20 +745,20 @@ export function TravelerDashboard() {
                       <article key={booking._id} className="request-card">
                         <div className="request-card-header">
                           <strong>{booking.trek?.title || "Himalayan Journey"}</strong>
-                          <span className="request-status-pill">Review available</span>
+                          <span className="request-status-pill">Eligible</span>
                         </div>
                         <p>Your trek is complete. Share your experience with future travelers.</p>
-                        <button
+                        {reviewingBookingId === booking._id ? renderReviewForm(booking) : <button
                           type="button"
                           className="view-trek-btn"
                           onClick={() => {
                             setReviewingBookingId(booking._id);
                             setReviewForm({ rating: 5, title: "", comment: "" });
-                            setActiveTab("bookings");
+                            setReviewPhotos([]);
                           }}
                         >
                           <Star size={15} /> Write a Review
-                        </button>
+                        </button>}
                       </article>
                     ))}
                   </div>

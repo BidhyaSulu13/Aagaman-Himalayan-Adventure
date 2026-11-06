@@ -23,6 +23,7 @@ import {
   Mail,
   MapPin,
   MessageSquare,
+  MoreVertical,
   Mountain,
   Plus,
   RefreshCw,
@@ -44,7 +45,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 import { api } from "../../services/api.js";
 import { dataStore } from "../../services/dataStore.js";
-import { getDepartureAvailableSeats, getDepartureStatus } from "../../services/departures.js";
+import { calculateDepartureEndDate, getDepartureAvailableSeats, getDepartureStatus } from "../../services/departures.js";
 import "./AdminDashboard.css";
 
 function hasDepartureEnded(endDate) {
@@ -115,7 +116,7 @@ export function AdminPage() {
     readTime: "6 min read",
     publicationStatus: "Draft",
   });
-  const [guidesList, setGuidesList] = useState(() => dataStore.getGuides());
+  const [guidesList, setGuidesList] = useState([]);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
   const [editingRegion, setEditingRegion] = useState(null);
   const [regionForm, setRegionForm] = useState({
@@ -130,7 +131,7 @@ export function AdminPage() {
     lng: "85.0",
     bestSeason: "Spring, Autumn",
     highlights: "",
-    gradingList: "Challenging, Strenuous, Moderate, Easy",
+    gradingList: "Easy, Moderate, Hard, Challenging, Strenuous",
     permits: "Conservation Area Entry Permit, TIMS Card",
   });
   const [guideModalOpen, setGuideModalOpen] = useState(false);
@@ -302,6 +303,10 @@ export function AdminPage() {
   // Load backend and live data
   const loadDashboardData = async () => {
     try {
+      api.guides.getAdminAll()
+        .then((res) => setGuidesList((res.guides || []).map((guide) => ({ ...guide, id: guide._id || guide.id }))))
+        .catch(() => {});
+
       // 0. Regions from API (must come first so region dropdowns populate correctly)
       api.regions
         .getAll()
@@ -747,7 +752,7 @@ export function AdminPage() {
       lng: "85.0",
       bestSeason: "Spring, Autumn",
       highlights: "",
-      gradingList: "Challenging, Strenuous, Moderate, Easy",
+      gradingList: "Easy, Moderate, Hard, Challenging, Strenuous",
       permits: "Conservation Area Entry Permit, TIMS Card",
     });
     setRegionModalOpen(true);
@@ -767,7 +772,7 @@ export function AdminPage() {
       lng: String(r.coordinates?.lng || r.lng || "85.0"),
       bestSeason: Array.isArray(r.bestSeason) ? r.bestSeason.join(", ") : (r.bestSeason || "Spring, Autumn"),
       highlights: Array.isArray(r.highlights) ? r.highlights.join("\n") : (r.highlights || ""),
-      gradingList: Array.isArray(r.gradingList) ? r.gradingList.join(", ") : (r.gradingList || "Challenging, Strenuous, Moderate, Easy"),
+      gradingList: Array.isArray(r.gradingList) ? r.gradingList.join(", ") : (r.gradingList || "Easy, Moderate, Hard, Challenging, Strenuous"),
       permits: Array.isArray(r.permits) ? r.permits.join(", ") : (r.permits || ""),
     });
     setRegionModalOpen(true);
@@ -936,6 +941,11 @@ export function AdminPage() {
 
   const handleSaveDestSubmit = async (e) => {
     e.preventDefault();
+    const linkedTrekSlugs = [...new Set(destForm.trekSlugs || [])];
+    if (linkedTrekSlugs.length < 1 || linkedTrekSlugs.length > 3) {
+      notify("Link each destination to 1–3 published trek routes.");
+      return;
+    }
     const slug = editingDest
       ? editingDest.slug
       : destForm.slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") ||
@@ -981,7 +991,7 @@ export function AdminPage() {
       accommodationTypes,
       culturalHighlights,
       nearbySideTrips,
-      trekSlugs: destForm.trekSlugs || [],
+      trekSlugs: linkedTrekSlugs,
     };
 
     try {
@@ -1038,9 +1048,8 @@ export function AdminPage() {
     setGuideModalOpen(true);
   };
 
-  const handleSaveGuide = (e) => {
+  const handleSaveGuide = async (e) => {
     e.preventDefault();
-    const id = editingGuide ? editingGuide.id : "guide-" + Date.now();
     const categoryLabels = {
       altitude: "Altitude & Acclimatization",
       permits: "Permits & TIMS 2026",
@@ -1049,13 +1058,24 @@ export function AdminPage() {
       culture: "Teahouse & Sherpa Culture",
       faq: "Trail FAQs",
     };
-    const saved = dataStore.saveGuide({
+    const payload = {
       ...guideForm,
-      id,
       categoryLabel: categoryLabels[guideForm.category] || guideForm.categoryLabel,
-    });
-    setGuidesList(dataStore.getGuides());
-    window.dispatchEvent(new Event("agaaman_data_changed"));
+      rules: (guideForm.rules || []).filter((rule) => rule.title.trim() || rule.text.trim()),
+      published: true,
+    };
+    try {
+      const response = editingGuide
+        ? await api.guides.update(editingGuide._id || editingGuide.id, payload)
+        : await api.guides.create(payload);
+      const saved = { ...response.guide, id: response.guide._id || response.guide.id };
+      setGuidesList((current) => editingGuide
+        ? current.map((guide) => (guide.id === saved.id ? saved : guide))
+        : [saved, ...current]);
+    } catch (error) {
+      notify(error.message || "Could not save guide article.");
+      return;
+    }
     notify(editingGuide ? `Guide updated: "${guideForm.title}"` : `Guide created: "${guideForm.title}"`);
     setGuideModalOpen(false);
   };
@@ -1067,11 +1087,11 @@ export function AdminPage() {
       message: "This guide article will be removed from the Trekking Guide page immediately.",
       confirmLabel: "Delete Guide",
       onConfirm: () => {
-        dataStore.deleteGuide(id);
-        setGuidesList(dataStore.getGuides());
-        window.dispatchEvent(new Event("agaaman_data_changed"));
-        notify(`Deleted guide: "${title}"`);
-        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        api.guides.delete(id).then(() => {
+          setGuidesList((current) => current.filter((guide) => guide.id !== id));
+          notify(`Deleted guide: "${title}"`);
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }).catch((error) => notify(error.message || "Could not delete guide."));
       },
     });
   };
@@ -1121,10 +1141,13 @@ export function AdminPage() {
 
   const handleOpenEditDeparture = (departure) => {
     setEditingDeparture(departure);
+    const trekSlug = departure.trek?.slug || departure.trekSlug || "";
+    const trekDuration = treksList.find((trek) => trek.slug === trekSlug)?.duration;
+    const startDate = departure.startDate ? new Date(departure.startDate).toISOString().slice(0, 10) : "";
     setDepForm({
-      trekSlug: departure.trek?.slug || departure.trekSlug || "",
-      startDate: departure.startDate ? new Date(departure.startDate).toISOString().slice(0, 10) : "",
-      endDate: departure.endDate ? new Date(departure.endDate).toISOString().slice(0, 10) : "",
+      trekSlug,
+      startDate,
+      endDate: calculateDepartureEndDate(startDate, trekDuration) || (departure.endDate ? new Date(departure.endDate).toISOString().slice(0, 10) : ""),
       bookingClosingDate: departure.bookingClosingDate
         ? new Date(departure.bookingClosingDate).toISOString().slice(0, 10)
         : "",
@@ -1132,7 +1155,7 @@ export function AdminPage() {
       originalPrice: departure.originalPrice ?? "",
       capacity: Number(departure.capacity || 1),
       minGroupSize: Number(departure.minGroupSize || 1),
-      status: departure.status || "Available",
+      status: departure.status === "Filling Fast" ? "Limited Seats" : departure.status || "Available",
       published: departure.published !== false,
     });
     setDepModalOpen(true);
@@ -1170,13 +1193,17 @@ export function AdminPage() {
     try {
       const response = await api.departures.update(departure._id || departure.id, changes);
       const notifications = response.notifications;
-      notify(
-        actionLabel === "cancelled" && notifications
-          ? notifications.failed === null
-            ? "Departure cancelled. Notification delivery could not be verified; check the server logs."
-            : `Departure cancelled. ${notifications.sent} traveler notification(s) sent${notifications.failed ? `; ${notifications.failed} failed` : ""}.`
-          : `Departure ${actionLabel}.`
-      );
+      if (actionLabel === "marked completed") {
+        notify(`Departure marked completed. ${response.completedBookings || 0} confirmed booking(s) updated for traveler reviews.`);
+      } else {
+        notify(
+          actionLabel === "cancelled" && notifications
+            ? notifications.failed === null
+              ? "Departure cancelled. Notification delivery could not be verified; check the server logs."
+              : `Departure cancelled. ${notifications.sent} traveler notification(s) sent${notifications.failed ? `; ${notifications.failed} failed` : ""}.`
+            : `Departure ${actionLabel}.`
+        );
+      }
       loadDashboardData();
     } catch (error) {
       notify(error.message || `Unable to ${actionLabel.toLowerCase()} departure.`);
@@ -1191,6 +1218,19 @@ export function AdminPage() {
       confirmLabel: "Cancel Departure",
       onConfirm: async () => {
         await handleDepartureUpdate(departure, { status: "Cancelled" }, "cancelled");
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  const handleMarkDepartureCompleted = (departure) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Mark departure as completed?",
+      message: "Confirm the trek has finished. Confirmed bookings will be marked Completed and become eligible for traveler reviews.",
+      confirmLabel: "Mark as Completed",
+      onConfirm: async () => {
+        await handleDepartureUpdate(departure, { status: "Completed" }, "marked completed");
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
@@ -2415,41 +2455,63 @@ export function AdminPage() {
                           <td>{dep.endDate ? new Date(dep.endDate).toLocaleDateString() : "—"}</td>
                           <td>{dep.bookingClosingDate ? new Date(dep.bookingClosingDate).toLocaleDateString() : "—"}</td>
                           <td>
-                            {getDepartureAvailableSeats(dep)} left of {dep.capacity || 0}
-                            {getDepartureAvailableSeats(dep) === 0 && " · Unavailable"}
+                            {["In Progress", "Closed", "Cancelled", "Completed", "Draft"].includes(getDepartureStatus(dep)) || getDepartureAvailableSeats(dep) === 0
+                              ? `Unavailable${dep.bookedCount > 0 ? ` · ${dep.bookedCount} reserved` : ""}`
+                              : `${getDepartureAvailableSeats(dep)} left of ${dep.capacity || 0}`}
                             {dep.minGroupSize > 1 && <small> · min. {dep.minGroupSize}</small>}
                           </td>
                           <td><strong>${dep.price?.toLocaleString()}</strong></td>
                           <td>
-                            <span className={`adm-pill ${["Closed", "Cancelled", "Completed", "Fully Booked"].includes(getDepartureStatus(dep)) ? "red" : "green"}`}>
+                            <span className={`adm-pill ${["Closed", "Cancelled", "Completed", "Fully Booked", "In Progress"].includes(getDepartureStatus(dep)) ? "red" : "green"}`}>
                               {getDepartureStatus(dep)}
                             </span>
+                            {dep.awaitingCompletion && <small className="adm-departure-note">Awaiting completion</small>}
                           </td>
                           <td>
                             <div className="adm-actions-row">
                               <button type="button" className="adm-btn-ghost" onClick={() => handleDepartureUpdate(dep, { published: dep.published === false }, dep.published === false ? "published" : "unpublished")}>
                                 {dep.published === false ? "Publish" : "Unpublish"}
                               </button>
-                              <button type="button" className="adm-btn-ghost" onClick={() => handleDepartureUpdate(dep, { status: dep.status === "Guaranteed" ? "Available" : "Guaranteed" }, dep.status === "Guaranteed" ? "unmarked guaranteed" : "marked guaranteed")}>
+                              <button type="button" className="adm-btn-ghost" disabled={getDepartureStatus(dep) === "In Progress" && dep.status !== "Guaranteed"} onClick={() => handleDepartureUpdate(dep, { status: dep.status === "Guaranteed" ? "Available" : "Guaranteed" }, dep.status === "Guaranteed" ? "unmarked guaranteed" : "marked guaranteed")}>
                                 {dep.status === "Guaranteed" ? "Unmark Guaranteed" : "Guarantee"}
                               </button>
+                              {dep.awaitingCompletion && (
+                                <button type="button" className="adm-btn-primary" onClick={() => handleMarkDepartureCompleted(dep)}>
+                                  Mark as Completed
+                                </button>
+                              )}
                               {!["Closed", "Cancelled", "Completed"].includes(dep.lifecycleStatus) && (
                                 <button type="button" className="adm-btn-ghost" onClick={() => handleDepartureUpdate(dep, { status: "Closed" }, "closed")}>Close</button>
                               )}
                               {!["Cancelled", "Completed"].includes(dep.lifecycleStatus) && (
-                                <button type="button" className="adm-btn-ghost" onClick={() => handleCancelDeparture(dep)}>Cancel</button>
+                                <button type="button" className="adm-btn-danger" onClick={() => handleCancelDeparture(dep)}>Cancel</button>
                               )}
-                              <button type="button" className="adm-icon-btn" onClick={() => handleOpenEditDeparture(dep)} title="Edit Departure">
-                                <Edit size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                className="adm-icon-btn delete"
-                                onClick={() => handleDeleteDeparture(dep._id || dep.id)}
-                                title="Delete Date"
-                              >
-                                <Trash2 size={15} />
-                              </button>
+                              <details className="adm-departure-menu">
+                                <summary className="adm-icon-btn adm-departure-menu-trigger" aria-label="More departure actions" title="More actions">
+                                  <MoreVertical size={15} aria-hidden="true" />
+                                </summary>
+                                <div className="adm-departure-menu-panel">
+                                  <button type="button" className="adm-btn-ghost adm-departure-menu-item" onClick={(event) => { event.currentTarget.closest("details").open = false; handleOpenEditDeparture(dep); }}>
+                                    <Edit size={14} /> Edit
+                                  </button>
+                                  <button type="button" className="adm-btn-ghost adm-departure-menu-item is-danger" disabled={dep.bookingCount == null || dep.bookingCount > 0 || dep.bookedCount > 0} onClick={(event) => { event.currentTarget.closest("details").open = false; handleDeleteDeparture(dep._id || dep.id); }}>
+                                    <Trash2 size={14} /> Delete
+                                  </button>
+                                  {dep.bookingCount > 0 ? (
+                                    <small className="adm-departure-menu-help">
+                                      Delete disabled: this departure has {dep.bookingCount} booking record(s). Use Close or Cancel instead.
+                                    </small>
+                                  ) : dep.bookingCount == null ? (
+                                    <small className="adm-departure-menu-help">
+                                      Booking history could not be verified. Refresh the admin departure list before deleting.
+                                    </small>
+                                  ) : dep.bookedCount > 0 ? (
+                                    <small className="adm-departure-menu-help">
+                                      Delete disabled while seats are reserved. Use Close or Cancel instead.
+                                    </small>
+                                  ) : null}
+                                </div>
+                              </details>
                             </div>
                           </td>
                         </tr>
@@ -3534,13 +3596,12 @@ export function AdminPage() {
                     value={trekForm.region}
                     onChange={(e) => setTrekForm({ ...trekForm, region: e.target.value })}
                   >
-                    <option value="Khumbu">Khumbu (Everest)</option>
-                    <option value="Annapurna">Annapurna</option>
-                    <option value="Langtang">Langtang</option>
-                    <option value="Manaslu">Manaslu</option>
-                    <option value="Makalu">Makalu</option>
-                    <option value="Dhaulagiri">Dhaulagiri</option>
-                    <option value="Dolpo">Dolpo</option>
+                    {!regionsList.some((region) => region.name === trekForm.region) && trekForm.region && (
+                      <option value={trekForm.region}>{trekForm.region}</option>
+                    )}
+                    {regionsList.map((region) => (
+                      <option key={region._id || region.slug} value={region.name}>{region.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="adm-field">
@@ -3584,8 +3645,9 @@ export function AdminPage() {
                   >
                     <option value="Easy">Easy</option>
                     <option value="Moderate">Moderate</option>
+                    <option value="Hard">Hard</option>
                     <option value="Challenging">Challenging</option>
-                    <option value="Demanding">Demanding / Strenuous</option>
+                    <option value="Strenuous">Strenuous</option>
                   </select>
                 </div>
                 <div className="adm-field">
@@ -3600,12 +3662,20 @@ export function AdminPage() {
               </div>
 
               <div className="adm-field">
-                <label>Cover Photo URL</label>
+                <label>Cover Photo URL (paste a direct image address)</label>
                 <input
                   type="url"
                   value={trekForm.image}
                   onChange={(e) => setTrekForm({ ...trekForm, image: e.target.value })}
                 />
+                <a
+                  href={`https://www.google.com/search?tbm=isch&tbs=il:cl&q=${encodeURIComponent(`${trekForm.title || "Nepal trekking trail"} Nepal`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="adm-item-title-link"
+                >
+                  Find a trek image, then copy its direct image address ↗
+                </a>
               </div>
 
               <div className="adm-field">
@@ -3792,7 +3862,8 @@ export function AdminPage() {
               </div>
 
               <div className="adm-field">
-                <label>Linked Trek Routes (Select which expeditions pass through or stage from here)</label>
+                <label>Linked Trek Routes (select 1–3 routes that pass through or stage from here)</label>
+                <p className="adm-help-text">{(destForm.trekSlugs || []).length} of 3 routes selected. Every destination needs at least one linked route.</p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "8px", maxHeight: "150px", overflowY: "auto", padding: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
                   {treksList.map((t) => {
                     const checked = (destForm.trekSlugs || []).includes(t.slug);
@@ -3801,6 +3872,7 @@ export function AdminPage() {
                         <input
                           type="checkbox"
                           checked={checked}
+                          disabled={checked ? (destForm.trekSlugs || []).length <= 1 : (destForm.trekSlugs || []).length >= 3}
                           onChange={(e) => {
                             const cur = destForm.trekSlugs || [];
                             if (e.target.checked) {
@@ -3985,7 +4057,15 @@ export function AdminPage() {
                 <label>Trek Package *</label>
                 <select
                   value={depForm.trekSlug}
-                  onChange={(e) => setDepForm({ ...depForm, trekSlug: e.target.value })}
+                  onChange={(e) => {
+                    const trekSlug = e.target.value;
+                    const duration = treksList.find((trek) => trek.slug === trekSlug)?.duration;
+                    setDepForm((current) => ({
+                      ...current,
+                      trekSlug,
+                      endDate: calculateDepartureEndDate(current.startDate, duration) || current.endDate,
+                    }));
+                  }}
                   required
                 >
                   <option value="" disabled>Select a trek</option>
@@ -4003,7 +4083,15 @@ export function AdminPage() {
                   <input
                     type="date"
                     value={depForm.startDate}
-                    onChange={(e) => setDepForm({ ...depForm, startDate: e.target.value })}
+                    onChange={(e) => {
+                      const startDate = e.target.value;
+                      const duration = treksList.find((trek) => trek.slug === depForm.trekSlug)?.duration;
+                      setDepForm((current) => ({
+                        ...current,
+                        startDate,
+                        endDate: calculateDepartureEndDate(startDate, duration),
+                      }));
+                    }}
                     required
                   />
                 </div>
@@ -4012,9 +4100,10 @@ export function AdminPage() {
                   <input
                     type="date"
                     value={depForm.endDate}
-                    onChange={(e) => setDepForm({ ...depForm, endDate: e.target.value })}
+                    readOnly
                     required
                   />
+                  <small className="adm-help-text">Calculated from the selected trek duration.</small>
                 </div>
               </div>
 
@@ -4072,7 +4161,16 @@ export function AdminPage() {
                 <div className="adm-field">
                   <label>Departure Status</label>
                   <select value={depForm.status} onChange={(e) => setDepForm({ ...depForm, status: e.target.value })}>
-                    {["Available", "Guaranteed", "Filling Fast", "Closed", "Cancelled"].map((status) => <option key={status} value={status}>{status}</option>)}
+                    {["Available", "Limited Seats", "Fully Booked", "Guaranteed", "Closed", "In Progress", "Completed", "Cancelled"].map((status) => (
+                      <option
+                        key={status}
+                        value={status}
+                        disabled={["Fully Booked", "In Progress"].includes(status)}
+                      >
+                        {status === "Available" ? "Available / Open" : status === "Closed" ? "Closed to bookings" : status}
+                        {["Fully Booked", "In Progress"].includes(status) ? " (automatic)" : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

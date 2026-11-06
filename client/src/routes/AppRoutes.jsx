@@ -139,6 +139,9 @@ export default function AppRoutes() {
             <Route path="/treks" element={<TreksPage />} />
             <Route path="/treks/:slug" element={<TrekDetailPage />} />
             <Route path="/trekking-guide" element={<TrekkingGuidePage />} />
+            <Route path="/trekking-guide/:category" element={<TrekkingGuidePage />} />
+            <Route path="/trekking-guides" element={<TrekkingGuidePage />} />
+            <Route path="/trekking-guides/:category" element={<TrekkingGuidePage />} />
             <Route path="/destinations" element={<DestinationsPage />} />
             <Route path="/destinations/:slug" element={<DestinationDetailPage />} />
             <Route path="/regions/:slug" element={<RegionPage />} />

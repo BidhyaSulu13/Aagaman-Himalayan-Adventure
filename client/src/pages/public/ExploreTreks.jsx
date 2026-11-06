@@ -246,7 +246,7 @@ export function TreksPage() {
           </FilterSelect>
 
           <FilterSelect label="Difficulty" value={difficulty} onChange={setDifficulty}>
-            {["Any difficulty", "Easy", "Moderate", "Challenging", "Strenuous"].map((item) => (
+            {["Any difficulty", "Easy", "Moderate", "Hard", "Challenging", "Strenuous"].map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>

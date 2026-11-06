@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -8,6 +8,8 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  CloudRain,
+  CloudSun,
   Compass,
   FileText,
   HeartHandshake,
@@ -18,6 +20,7 @@ import {
   Mountain,
   Package,
   ShieldCheck,
+  Snowflake,
   Sparkles,
   Sun,
   Thermometer,
@@ -27,14 +30,15 @@ import {
 } from "lucide-react";
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { SectionHeading } from "../../components/common/SectionHeading.jsx";
+import { api } from "../../services/api.js";
 
 const guideTabs = [
-  { id: "altitude", label: "Altitude & Acclimatization", icon: Mountain },
-  { id: "permits", label: "Permits & TIMS", icon: FileText },
-  { id: "packing", label: "Packing Checklist", icon: Package },
-  { id: "seasons", label: "Seasons & Weather", icon: Sun },
-  { id: "culture", label: "Local Culture & Etiquette", icon: HeartHandshake },
-  { id: "faq", label: "Trail FAQs", icon: HelpCircle }
+  { id: "altitude", slug: "altitude-acclimatization", label: "Altitude & Acclimatization", icon: Mountain },
+  { id: "permits", slug: "permits-and-tims", label: "Permits & TIMS", icon: FileText },
+  { id: "packing", slug: "packing-checklist", label: "Packing Checklist", icon: Package },
+  { id: "seasons", slug: "seasons-and-weather", label: "Seasons & Weather", icon: Sun },
+  { id: "culture", slug: "local-culture-and-etiquette", label: "Local Culture & Etiquette", icon: HeartHandshake },
+  { id: "faq", slug: "trail-faqs", label: "Trail FAQs", icon: HelpCircle }
 ];
 
 const initialPackingList = [
@@ -99,8 +103,23 @@ const initialPackingList = [
 ];
 
 export function TrekkingGuidePage() {
-  const [activeTab, setActiveTab] = useState("altitude");
+  const { category: routeCategory } = useParams();
+  const navigate = useNavigate();
+  const activeTab = guideTabs.find((tab) => tab.slug === routeCategory)?.id || "altitude";
   const [packingList, setPackingList] = useState(initialPackingList);
+  const [guideArticles, setGuideArticles] = useState([]);
+  useEffect(() => {
+    if (routeCategory && !guideTabs.some((tab) => tab.slug === routeCategory)) {
+      navigate("/trekking-guides/altitude-acclimatization", { replace: true });
+    }
+  }, [routeCategory, navigate]);
+  useEffect(() => {
+    let active = true;
+    api.guides.getAll()
+      .then((response) => { if (active) setGuideArticles(response.guides || []); })
+      .catch(() => { if (active) setGuideArticles([]); });
+    return () => { active = false; };
+  }, []);
   const altitudeReminders = [
     { id: "r1", title: "Plan conservatively:", text: "Choose an itinerary with an appropriate pace and discuss altitude risks with a qualified healthcare professional before travel." },
     { id: "r2", title: "Take symptoms seriously:", text: "Do not continue ascending when unwell. Seek help from a qualified guide and medical professional." },
@@ -152,16 +171,16 @@ export function TrekkingGuidePage() {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
-              <button
+              <Link
                 key={tab.id}
                 role="tab"
                 aria-selected={isActive}
                 className={`guide-tab-button${isActive ? " is-active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
+                to={`/trekking-guides/${tab.slug}`}
               >
                 <Icon size={17} />
                 <span>{tab.label}</span>
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -169,6 +188,26 @@ export function TrekkingGuidePage() {
 
       {/* Guide Content Sections */}
       <div className="guide-content section-wrap">
+        {guideArticles.filter((article) => article.category === activeTab).map((article) => (
+          <Reveal className="guide-pane" key={article._id || article.id}>
+            <div className="guide-section-header">
+              <span className="guide-tag">{article.categoryLabel || guideTabs.find((tab) => tab.id === article.category)?.label || "Trail Guide"}</span>
+              <h2>{article.title}</h2>
+              {article.summary && <p>{article.summary}</p>}
+            </div>
+            {article.content && <div className="guide-dynamic-copy">{article.content}</div>}
+            {article.rules?.length > 0 && (
+              <div className="guide-cards-grid">
+                {article.rules.map((rule, index) => (
+                  <article className="guide-feature-card" key={rule.id || `${article._id}-${index}`}>
+                    <h3>{rule.title}</h3>
+                    <p>{rule.text}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </Reveal>
+        ))}
         {/* Tab 1: Altitude & Acclimatization */}
         {activeTab === "altitude" && (
           <Reveal className="guide-pane">
@@ -405,73 +444,98 @@ export function TrekkingGuidePage() {
               <span className="guide-tag">Seasonal patterns · conditions vary</span>
               <h2>Plan around the season and route</h2>
               <p>
-                Weather depends on elevation, route, and current conditions. Treat these seasonal notes as general context, and check local forecasts and route conditions before setting out.
+                Nepal Tourism Board identifies spring and autumn as popular trekking windows. These are broad planning seasons: elevation, rain shadow, snowfall, and yearly weather can shift conditions substantially from one route to another.
               </p>
             </div>
 
             <div className="seasons-grid">
-              <div className="season-card is-highlighted">
-                <div className="season-badge">Seasonal pattern</div>
+              <article className="season-card is-highlighted">
+                <div className="season-icon"><CloudSun size={22} /></div>
+                <div className="season-badge">Popular trekking window</div>
                 <div className="season-title-row">
                   <h3>Autumn</h3>
-                  <span>Conditions vary</span>
+                  <span>September–November</span>
                 </div>
                 <p className="season-desc">
-                  Some routes may see clearer conditions after the monsoon, but visibility, temperatures, and transport can change quickly.
+                  Post-monsoon skies are often clearer, making autumn a popular time for mountain views. Trails and transport can still be affected by late rain, and temperatures fall as winter approaches.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Weather:</strong> Check the current forecast</div>
-                  <div><strong>Transport:</strong> Confirm schedules locally</div>
-                  <div><strong>Trail conditions:</strong> Vary by route</div>
+                  <div><strong>Plan for:</strong> Busy trails and lodges in popular regions</div>
+                  <div><strong>Pack:</strong> Layers for warm sun and cold mornings</div>
+                  <div><strong>Before you go:</strong> Check local forecasts and route reports</div>
                 </div>
-              </div>
+              </article>
 
-              <div className="season-card is-highlighted">
-                <div className="season-badge">Seasonal pattern</div>
+              <article className="season-card is-highlighted">
+                <div className="season-icon"><Sun size={22} /></div>
+                <div className="season-badge">Popular trekking window</div>
                 <div className="season-title-row">
                   <h3>Spring</h3>
-                  <span>Conditions vary</span>
+                  <span>February–May</span>
                 </div>
                 <p className="season-desc">
-                  Some lower-elevation areas may have seasonal blooms. Conditions and visibility vary across regions and from year to year.
+                  Days generally warm as spring advances, while high elevations can remain cold and exposed to snow or storms. Rhododendrons bloom in many hill and mountain areas, with timing varying by altitude.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Weather:</strong> Check the current forecast</div>
-                  <div><strong>Daylight:</strong> Confirm local conditions</div>
-                  <div><strong>Trail conditions:</strong> Vary by route</div>
+                  <div><strong>Plan for:</strong> Changeable conditions at high passes</div>
+                  <div><strong>Pack:</strong> Sun protection plus warm and waterproof layers</div>
+                  <div><strong>Before you go:</strong> Ask about snow and pass access</div>
                 </div>
-              </div>
+              </article>
 
-              <div className="season-card">
+              <article className="season-card">
+                <div className="season-icon"><Snowflake size={22} /></div>
                 <div className="season-title-row">
                   <h3>Winter</h3>
-                  <span>Cold-weather planning</span>
+                  <span>December–February</span>
                 </div>
                 <p className="season-desc">
-                  Cold, snow, and closures may affect access, services, and safety. Check conditions with local authorities and your operator before travel.
+                  Winter brings shorter days and much colder nights; Nepal Tourism Board notes that temperatures in mountain regions can fall below zero. Snow can make high passes or remote trails impassable, and some lodges or services may close. Lower-elevation routes can remain viable when conditions are suitable.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Weather:</strong> Prepare for cold conditions</div>
-                  <div><strong>Access:</strong> Confirm route status</div>
-                  <div><strong>Services:</strong> Check availability</div>
+                  <div><strong>Plan for:</strong> Cold exposure, snow, and fewer daylight hours</div>
+                  <div><strong>Pack:</strong> Insulating layers, wind protection, and a warm sleep system suited to the route</div>
+                  <div><strong>Before you go:</strong> Confirm pass status, open lodges, and rescue options locally</div>
                 </div>
-              </div>
+              </article>
 
-              <div className="season-card">
+              <article className="season-card">
+                <div className="season-icon"><CloudRain size={22} /></div>
                 <div className="season-title-row">
                   <h3>Monsoon</h3>
-                  <span>Rain and route planning</span>
+                  <span>June–September</span>
                 </div>
                 <p className="season-desc">
-                  Rain can affect trails, transport, and visibility. Conditions vary by region; verify access and weather for your specific route.
+                  Monsoon rain can reduce visibility and bring slippery paths, landslides, swollen rivers, and transport delays. Rain-shadow areas such as Mustang and Manang are comparatively dry, but local forecasts and route conditions still matter.
                 </p>
                 <div className="season-specs">
-                  <div><strong>Weather:</strong> Check the current forecast</div>
-                  <div><strong>Access:</strong> Confirm route status</div>
-                  <div><strong>Trail conditions:</strong> Vary by route</div>
+                  <div><strong>Plan for:</strong> Flexible days and weather-related delays</div>
+                  <div><strong>Pack:</strong> Reliable rain protection and footwear with good grip</div>
+                  <div><strong>Before you go:</strong> Check landslide, road, and flight updates</div>
                 </div>
-              </div>
+              </article>
 
+              <article className="season-card">
+                <div className="season-icon"><Sun size={22} /></div>
+                <div className="season-title-row">
+                  <h3>Summer / Pre-monsoon</h3>
+                  <span>May–June transition</span>
+                </div>
+                <p className="season-desc">
+                  Heat and humidity increase in lower Nepal as the monsoon approaches. Mountain mornings may begin clear, while cloud, rain, or storms can build later; conditions vary by elevation and year.
+                </p>
+                <div className="season-specs">
+                  <div><strong>Plan for:</strong> Early starts and flexible daily targets</div>
+                  <div><strong>Pack:</strong> Sun and rain protection, plus extra water capacity</div>
+                  <div><strong>Before you go:</strong> Review current forecasts with your guide</div>
+                </div>
+              </article>
+
+            </div>
+            <div className="guide-source-note">
+              <strong>Check before travel:</strong> These summaries are not forecasts. Confirm conditions for your route with your guide and official services.
+              <a href="https://ntb.gov.np/plan-your-trip/about-nepal/climate" target="_blank" rel="noreferrer">Nepal Tourism Board climate information</a>
+              <a href="https://dhm.gov.np/climate-services/seasonal-outlook" target="_blank" rel="noreferrer">Department of Hydrology and Meteorology outlooks</a>
             </div>
           </Reveal>
         )}
@@ -531,6 +595,34 @@ export function TrekkingGuidePage() {
                 </p>
               </article>
 
+              <article className="guide-feature-card">
+                <div className="feature-icon"><ShieldCheck size={20} /></div>
+                <h3>Check before entering sacred spaces</h3>
+                <p>
+                  Some temples restrict entry by religion or other local rules. Read signs, ask your host or guide, remove shoes where requested, and do not assume every site follows the same practice.
+                </p>
+              </article>
+
+              <article className="guide-feature-card">
+                <div className="feature-icon"><Sparkles size={20} /></div>
+                <h3>Ask before taking photographs</h3>
+                <p>
+                  Ask permission before photographing people, ceremonies, or private spaces. Respect a refusal and follow any photography restrictions at monasteries and temples.
+                </p>
+              </article>
+
+              <article className="guide-feature-card">
+                <div className="feature-icon"><Trees size={20} /></div>
+                <h3>Support the places hosting your trek</h3>
+                <p>
+                  Use local services where practical, carry out waste that cannot be handled locally, and ask your guide how to reduce pressure on water, fuel, and fragile trails.
+                </p>
+              </article>
+
+            </div>
+            <div className="guide-source-note">
+              Customs differ across Nepal's communities and faith traditions. Ask your local host or guide and follow site-specific instructions.
+              <a href="https://trade.ntb.gov.np/travel-essentials/cultural-etiquette/" target="_blank" rel="noreferrer">Nepal Tourism Board cultural etiquette</a>
             </div>
           </Reveal>
         )}

@@ -154,7 +154,7 @@ export async function getMostPopularTreks({ limit = 8, region, difficulty } = {}
               $expr: {
                 $and: [
                   { $eq: ["$trek", "$$trekId"] },
-                  { $eq: ["$bookingStatus", "Confirmed"] },
+                  { $in: ["$bookingStatus", ["Confirmed", "Completed"]] },
                 ],
               },
             },

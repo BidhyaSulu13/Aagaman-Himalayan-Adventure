@@ -103,6 +103,15 @@ departureSchema.virtual("lifecycleStatus").get(function () {
   return "Open";
 });
 
+departureSchema.virtual("awaitingCompletion").get(function () {
+  if (["Cancelled", "Completed"].includes(this.status)) return false;
+  const today = getNepalDateKey();
+  return (
+    getNepalDateKey(this.startDate) <= today &&
+    getNepalDateKey(this.endDate) < today
+  );
+});
+
 departureSchema.index({ published: 1, startDate: 1, status: 1 });
 
 departureSchema.pre("validate", function validateDepartureDates() {

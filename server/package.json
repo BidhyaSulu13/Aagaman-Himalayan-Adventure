@@ -9,7 +9,12 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "db:check": "node scripts/checkDatabaseConnection.js",
     "seed": "node src/seed.js",
+    "catalog:add-destinations": "node scripts/addDestinationsAndRegions.js",
+    "catalog:extend-trails": "node scripts/extendTrailCatalog.js",
+    "departures:sync-end-dates": "node scripts/syncDepartureEndDates.js",
+    "email:verify": "node scripts/verifyEmail.js",
     "admin:create": "node scripts/provisionAdmin.js"
   },
   "dependencies": {

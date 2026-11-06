@@ -3,13 +3,22 @@ import { Booking } from "../models/Booking.js";
 import { Departure } from "../models/Departure.js";
 import { Review } from "../models/Review.js";
 import { Trek } from "../models/Trek.js";
-import { sendBookingConfirmationEmail } from "../services/emailService.js";
-import { getNepalDateKey, getNepalDayStart } from "../utils/nepalTime.js";
+import {
+  notifyBookingConfirmed,
+  notifyBookingReceived,
+  notifyTrekCompleted,
+} from "../services/bookingEmailService.js";
+import { getNepalDateKey } from "../utils/nepalTime.js";
 
 // Helper to generate unique booking reference
 function generateBookingReference() {
   const randomSuffix = crypto.randomBytes(3).toString("hex").toUpperCase();
   return `BK-${new Date().getFullYear()}-${randomSuffix}`;
+}
+
+function getFirstBookableStartDate() {
+  const [year, month, day] = getNepalDateKey().split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1));
 }
 
 async function releaseDepartureSeats(departureId, seatCount) {
@@ -32,7 +41,9 @@ async function reserveDepartureSeats(departureId, seatCount) {
       _id: departureId,
       published: { $ne: false },
       status: { $in: ["Available", "Guaranteed", "Filling Fast"] },
-      startDate: { $gte: getNepalDayStart(now, 1) },
+      // Date-only departure dates are stored at UTC midnight. Compare against
+      // the next Nepal calendar date so today's departure cannot be reserved.
+      startDate: { $gte: getFirstBookableStartDate() },
       endDate: { $gte: now },
       $or: [
         { bookingClosingDate: { $exists: false } },
@@ -191,15 +202,14 @@ export async function createBooking(req, res, next) {
 
     const departureStart = new Date(departure.startDate);
     const requestedDate = startDate ? new Date(startDate) : departureStart;
-    const startOfToday = new Date();
-    startOfToday.setUTCHours(0, 0, 0, 0);
-    const endOfDeparture = new Date(departure.endDate);
-    endOfDeparture.setUTCHours(23, 59, 59, 999);
+    const departureDateKey = getNepalDateKey(departure.startDate);
+    const endDateKey = getNepalDateKey(departure.endDate);
+    const todayNepalKey = getNepalDateKey();
     if (
       Number.isNaN(requestedDate.getTime()) ||
       requestedDate.toISOString().slice(0, 10) !== departureStart.toISOString().slice(0, 10) ||
-      departureStart < startOfToday ||
-      endOfDeparture <= new Date()
+      departureDateKey <= todayNepalKey ||
+      endDateKey < todayNepalKey
     ) {
       return res.status(409).json({
         success: false,
@@ -254,7 +264,7 @@ export async function createBooking(req, res, next) {
         _id: departure._id,
         published: { $ne: false },
         status: { $in: ["Available", "Guaranteed", "Filling Fast"] },
-        startDate: { $gte: startOfToday },
+        startDate: { $gte: getFirstBookableStartDate() },
         endDate: { $gte: new Date() },
         $or: [
           { bookingClosingDate: { $exists: false } },
@@ -312,18 +322,7 @@ export async function createBooking(req, res, next) {
       { path: "departure" },
     ]);
 
-    // Asynchronous email notification
-    sendBookingConfirmationEmail({
-      email: primaryTraveler.email,
-      travelerName: primaryTraveler.fullName,
-      bookingReference: bookingRef,
-      trekTitle: trek.title,
-      startDate: departure.startDate ? new Date(departure.startDate).toDateString() : "TBD",
-      travelers: travelerCount,
-      bookingStatus: booking.bookingStatus,
-      paymentStatus: booking.paymentStatus,
-      totalAmount,
-    });
+    void notifyBookingReceived(booking._id);
 
     res.status(201).json({
       success: true,
@@ -353,7 +352,7 @@ export async function getMyBookings(req, res, next) {
       .sort({ createdAt: -1 });
     const reviews = await Review.find({
       booking: { $in: bookings.map((booking) => booking._id) },
-    }).select("booking title rating comment moderationStatus createdAt");
+    }).select("booking departure title rating comment photos moderationStatus verificationStatus createdAt");
     const reviewsByBooking = new Map(
       reviews.map((review) => [review.booking.toString(), review])
     );
@@ -416,7 +415,6 @@ export async function cancelBookingRequest(req, res, next) {
     if (!booking) {
       return res.status(404).json({ success: false, message: "Booking not found." });
     }
-
     const isOwner =
       req.user &&
       ((booking.user && booking.user.toString() === req.user._id.toString()) ||
@@ -524,6 +522,7 @@ export async function updateBookingStatus(req, res, next) {
     if (!booking) {
       return res.status(404).json({ success: false, message: "Booking not found." });
     }
+    const previousStatus = booking.bookingStatus;
 
     if (bookingStatus === "Completed" && bookingStatus !== booking.bookingStatus) {
       const validationError = await getCompletionValidationError(booking);
@@ -585,6 +584,12 @@ export async function updateBookingStatus(req, res, next) {
     }
 
     await booking.save();
+    if (booking.bookingStatus === "Confirmed" && previousStatus !== "Confirmed") {
+      void notifyBookingConfirmed(booking._id);
+    }
+    if (booking.bookingStatus === "Completed" && previousStatus !== "Completed") {
+      void notifyTrekCompleted(booking._id);
+    }
 
     const populated = await booking.populate([
       { path: "trek", select: "title slug region images" },
@@ -709,6 +714,12 @@ export async function updateBookingDetails(req, res, next) {
         await releaseDepartureSeats(nextDepartureId, additionalSeats);
       }
       throw error;
+    }
+    if (nextStatus === "Confirmed" && previousStatus !== "Confirmed") {
+      void notifyBookingConfirmed(booking._id);
+    }
+    if (nextStatus === "Completed" && previousStatus !== "Completed") {
+      void notifyTrekCompleted(booking._id);
     }
 
     const seatsToRelease = currentlyReserved

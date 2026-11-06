@@ -6,6 +6,7 @@ import helmet from "helmet";
 // Import all routes
 import adminRoutes from "./routes/adminRoutes.js";
 import articleRoutes from "./routes/articleRoutes.js";
+import guideRoutes from "./routes/guideRoutes.js";
 import contactMessageRoutes from "./routes/contactMessageRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
@@ -85,6 +86,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/articles", articleRoutes);
+app.use("/api/guides", guideRoutes);
 app.use("/api/contact-messages", contactMessageRoutes);
 app.use("/api/uploads/treks", express.static(TREK_IMAGE_DIR, { fallthrough: true, maxAge: "1d" }));
 app.use("/api/uploads/reviews", express.static(REVIEW_IMAGE_DIR, { fallthrough: true, maxAge: "1d" }));

@@ -12,29 +12,42 @@ function escapeHtml(value = "") {
   })[character]);
 }
 
-function getTransporter() {
+export function getTransporter() {
   if (transporter) return transporter;
 
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASSWORD;
+  const pass = process.env.SMTP_PASSWORD?.replace(/\s/g, "");
+  const oauthConfigured = Boolean(
+    process.env.SMTP_OAUTH_CLIENT_ID &&
+    process.env.SMTP_OAUTH_CLIENT_SECRET &&
+    process.env.SMTP_OAUTH_REFRESH_TOKEN
+  );
 
-  if (host && user && pass) {
+  if (user && (pass || oauthConfigured)) {
+    const port = Number(process.env.SMTP_PORT) || 465;
     transporter = nodemailer.createTransport({
       host,
-      port: Number(process.env.SMTP_PORT) || 587,
-      auth: { user, pass },
+      port,
+      secure: port === 465,
+      auth: oauthConfigured
+        ? {
+            type: "OAuth2",
+            user,
+            clientId: process.env.SMTP_OAUTH_CLIENT_ID,
+            clientSecret: process.env.SMTP_OAUTH_CLIENT_SECRET,
+            refreshToken: process.env.SMTP_OAUTH_REFRESH_TOKEN,
+          }
+        : { user, pass },
     });
   } else {
-    // Development fallback mock
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Email is not configured. Set SMTP_USER and Gmail OAuth 2.0 or SMTP_PASSWORD credentials.");
+    }
+    console.warn("[EMAIL NOT SENT] SMTP credentials are missing. Local email calls will use a no-delivery development fallback.");
     transporter = {
       sendMail: async (opts) => {
-        console.log("-----------------------------------------");
-        console.log(`[EMAIL DISPATCH - DEV SIMULATION]`);
-        console.log(`To: ${opts.to}`);
-        console.log(`Subject: ${opts.subject}`);
-        console.log(`Body:\n${opts.text || opts.html}`);
-        console.log("-----------------------------------------");
+        console.warn(`[EMAIL NOT SENT - DEV MODE] ${opts.subject} -> ${opts.to}`);
         return { messageId: `dev-msg-${Date.now()}` };
       },
     };

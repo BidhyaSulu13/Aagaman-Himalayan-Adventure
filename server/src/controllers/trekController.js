@@ -173,7 +173,9 @@ export async function getTrekBySlug(req, res, next) {
       .populate("booking", "bookingStatus")
       .sort({ createdAt: -1 });
     const eligibleReviews = reviews.filter(
-      (review) => !review.booking || review.booking.bookingStatus === "Completed"
+      (review) =>
+        review.verificationStatus === "Verified Trekker" &&
+        review.booking?.bookingStatus === "Completed"
     );
     eligibleReviews.forEach((review) => { review.booking = undefined; });
 

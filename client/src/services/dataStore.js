@@ -583,6 +583,7 @@ export const dataStore = {
       (t) =>
         t.duration >= 13 ||
         t.elevation >= 5000 ||
+        t.difficulty?.toLowerCase().includes("hard") ||
         t.difficulty?.toLowerCase().includes("challenging") ||
         t.difficulty?.toLowerCase().includes("strenuous")
     );

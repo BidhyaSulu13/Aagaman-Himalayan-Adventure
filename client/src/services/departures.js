@@ -5,9 +5,47 @@ export function getDepartureAvailableSeats(departure) {
   return Number.isFinite(availableSeats) ? Math.max(0, availableSeats) : 0;
 }
 
+export function calculateDepartureEndDate(startDate, durationDays) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || ""))) return "";
+  const duration = Number(durationDays);
+  if (!Number.isInteger(duration) || duration < 1) return "";
+
+  const endDate = new Date(`${startDate}T00:00:00.000Z`);
+  if (
+    Number.isNaN(endDate.getTime()) ||
+    endDate.toISOString().slice(0, 10) !== startDate
+  ) {
+    return "";
+  }
+  endDate.setUTCDate(endDate.getUTCDate() + duration);
+  return endDate.toISOString().slice(0, 10);
+}
+
+function getNepalTodayKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kathmandu",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export function getDepartureStatus(departure) {
   const lifecycleStatus = departure.lifecycleStatus;
-  if (["Cancelled", "Closed", "Completed", "In Progress", "Draft"].includes(lifecycleStatus)) {
+  if (["Cancelled", "Completed", "Closed"].includes(departure.status)) {
+    return departure.status;
+  }
+  if (["Cancelled", "Completed", "Closed", "Draft"].includes(lifecycleStatus)) {
+    return lifecycleStatus;
+  }
+  const startDate = new Date(departure.startDate);
+  if (
+    !Number.isNaN(startDate.getTime()) &&
+    startDate.toISOString().slice(0, 10) <= getNepalTodayKey()
+  ) {
+    return "In Progress";
+  }
+  if (lifecycleStatus === "In Progress") {
     return lifecycleStatus;
   }
   const availableSeats = getDepartureAvailableSeats(departure);
@@ -25,11 +63,16 @@ export function getDepartureStatus(departure) {
 
 export function isDepartureBookable(departure) {
   const startDate = new Date(departure.startDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const bookingClosingDate = departure.bookingClosingDate
+  const todayKey = getNepalTodayKey();
+  const today = new Date(`${todayKey}T00:00:00.000Z`);
+  const closingDate = departure.bookingClosingDate
     ? new Date(departure.bookingClosingDate)
     : null;
+  const bookingClosingDate = closingDate && !Number.isNaN(closingDate.getTime())
+    ? closingDate.toISOString().slice(0, 10)
+    : null;
+
+  if (departure.bookingClosingDate && !bookingClosingDate) return false;
 
   return (
     departure.published !== false &&
@@ -40,6 +83,6 @@ export function isDepartureBookable(departure) {
     !Number.isNaN(startDate.getTime()) &&
     startDate >= today &&
     getDepartureAvailableSeats(departure) > 0 &&
-    (!bookingClosingDate || bookingClosingDate >= new Date())
+    (!bookingClosingDate || bookingClosingDate >= todayKey)
   );
 }

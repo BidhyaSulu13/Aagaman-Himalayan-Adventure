@@ -188,6 +188,14 @@ export const api = {
     delete: (id) => request(`/articles/${id}`, { method: "DELETE" }),
   },
 
+  guides: {
+    getAll: () => request("/guides"),
+    getAdminAll: () => request("/guides/admin"),
+    create: (body) => request("/guides", { method: "POST", body }),
+    update: (id, body) => request(`/guides/${id}`, { method: "PUT", body }),
+    delete: (id) => request(`/guides/${id}`, { method: "DELETE" }),
+  },
+
   // ── TRIP REQUESTS ──
   tripRequests: {
     create: (body) => request("/trip-requests", { method: "POST", body }),

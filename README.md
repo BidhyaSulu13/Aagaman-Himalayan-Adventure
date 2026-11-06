@@ -105,7 +105,15 @@ For the API, copy the root `.env.example` to `server/.env` and configure `MONGOD
 
 To create an administrator without clearing any application data, set `ADMIN_EMAIL` and a unique `ADMIN_PASSWORD` of at least 16 characters in `server/.env`, then run `npm run admin:create` from `server/`. If that admin already exists, add `-- --reset-password` to update its password. This command will not promote a traveler account or modify an existing account unless it is already an admin and the reset flag is provided. Do not reuse a password that has been shared in chat or committed to source.
 
-SMTP settings are optional for development; without them, email is simulated in the server log.
+Email can be simulated in local development. To deliver real messages from a local server, configure Gmail SMTP in `server/.env` as described below.
+
+### Local Gmail email delivery
+
+The API sends mail from the server over Gmail's authenticated SMTP service. Configure `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER=finalyearprj534@gmail.com`, and a matching `SMTP_FROM` in `server/.env`. Use Gmail OAuth 2.0 with `SMTP_OAUTH_CLIENT_ID`, `SMTP_OAUTH_CLIENT_SECRET`, and `SMTP_OAUTH_REFRESH_TOKEN` for the recommended setup. For a small project, an account App Password can be set as `SMTP_PASSWORD`; enable 2-Step Verification first and never use the account's normal sign-in password. Keep all credentials in the ignored `.env` file or deployment secret settings, never in source control. Run `npm run email:verify` from `server/` to check SMTP connectivity and authentication, then restart the API after changing its mail settings.
+
+When a signed-in traveler books, the booking request email and a PDF booking summary go to the email on their account. When an admin marks the booking or its departure completed, the traveler receives a congratulations email. For non-account bookings, the lead traveler's booking email is used. In local development without SMTP credentials the server only logs the subject and recipient; it does not deliver a message. Configure the same variables in the deployed API environment for production delivery.
+
+Gmail supports SMTP with TLS on port 465 or STARTTLS on 587. Google's current SMTP guidance supports OAuth 2.0; App Passwords require 2-Step Verification. See [Gmail SMTP setup](https://developers.google.com/workspace/gmail/imap/imap-smtp), [Nodemailer Gmail guidance](https://nodemailer.com/guides/using-gmail), and [Google App Password requirements](https://support.google.com/accounts/answer/185833).
 
 ### Traveler sign-in and booking access
 

@@ -108,6 +108,18 @@ const bookingSchema = new Schema(
       type: Date,
       select: false,
     },
+    bookingConfirmationEmailSentAt: {
+      type: Date,
+      default: undefined,
+    },
+    bookingConfirmedEmailSentAt: {
+      type: Date,
+      default: undefined,
+    },
+    trekCompletionEmailSentAt: {
+      type: Date,
+      default: undefined,
+    },
   },
   {
     timestamps: true,

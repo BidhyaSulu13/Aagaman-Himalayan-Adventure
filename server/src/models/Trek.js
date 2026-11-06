@@ -75,7 +75,7 @@ const trekSchema = new Schema(
     },
     difficulty: {
       type: String,
-      enum: ["Easy", "Moderate", "Challenging", "Strenuous"],
+      enum: ["Easy", "Moderate", "Hard", "Challenging", "Strenuous"],
       default: "Moderate",
       index: true,
     },

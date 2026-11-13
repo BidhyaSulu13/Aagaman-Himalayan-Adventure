@@ -1,0 +1,187 @@
+.illustrated-route-map {
+  display: grid;
+  gap: 14px;
+}
+
+.illustrated-map-viewer {
+  position: relative;
+  height: clamp(340px, 52vw, 600px);
+  overflow: hidden;
+  border: 1px solid #dce6e1;
+  border-radius: 12px;
+  background: #f4f7f5;
+  box-shadow: 0 10px 26px rgba(8, 60, 52, 0.08);
+}
+
+.illustrated-map-canvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background-color: #f4f7f5;
+  background-image: linear-gradient(45deg, #e9efec 25%, transparent 25%), linear-gradient(-45deg, #e9efec 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e9efec 75%), linear-gradient(-45deg, transparent 75%, #e9efec 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+.illustrated-map-canvas img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transition: transform 180ms ease;
+  transform-origin: center;
+}
+
+.illustrated-map-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.illustrated-map-controls button,
+.illustrated-map-close {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #d8e2dd;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #153e34;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+}
+
+.illustrated-map-controls button:hover,
+.illustrated-map-close:hover {
+  border-color: #0b5a4b;
+  background: #f0f7f4;
+}
+
+.illustrated-map-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  background: radial-gradient(ellipse at 50% 30%, #e5f0eb 0, #f7f9f8 68%);
+  color: #63756d;
+  text-align: center;
+}
+
+.illustrated-map-placeholder strong {
+  color: #173f35;
+  font-size: 18px;
+}
+
+.illustrated-map-placeholder-icon {
+  color: #e97525;
+  font-size: 64px;
+  line-height: 1;
+}
+
+.illustrated-route-stops-wrap {
+  padding: 15px 16px 13px;
+  border: 1px solid #dce6e1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.illustrated-route-stops-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 11px;
+  color: #123e34;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.illustrated-route-stops-title span {
+  color: #697a72;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.illustrated-route-stops {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  padding: 1px 1px 8px;
+  scrollbar-color: #9ab9ad #edf3f0;
+  scrollbar-width: thin;
+}
+
+.illustrated-route-stop {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-height: 56px;
+  padding: 10px 13px;
+  border: 1px solid #dfe9e4;
+  border-radius: 999px;
+  background: #f8fbf9;
+  color: #24473c;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.illustrated-route-stop:hover,
+.illustrated-route-stop:focus-visible,
+.illustrated-route-stop[data-active="true"] {
+  transform: translateY(-2px);
+  border-color: #f97316;
+  background: #fff8f2;
+  box-shadow: 0 5px 14px rgba(128, 64, 19, 0.1);
+}
+
+.illustrated-route-stop span {
+  color: #65766e;
+  font-size: 11px;
+}
+
+.illustrated-map-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(8, 20, 17, 0.88);
+}
+
+.illustrated-map-modal > div {
+  width: min(1440px, 100%);
+}
+
+.illustrated-map-viewer.is-fullscreen {
+  height: min(88vh, 1000px);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.illustrated-map-viewer.is-fullscreen .illustrated-map-canvas img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.illustrated-map-close {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 14px;
+}
+
+@media (max-width: 640px) {
+  .illustrated-map-viewer { height: 360px; }
+  .illustrated-map-modal { padding: 12px; }
+  .illustrated-map-viewer.is-fullscreen { height: 90vh; }
+}

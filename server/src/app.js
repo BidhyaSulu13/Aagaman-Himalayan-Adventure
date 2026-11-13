@@ -8,6 +8,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import articleRoutes from "./routes/articleRoutes.js";
 import guideRoutes from "./routes/guideRoutes.js";
 import contactMessageRoutes from "./routes/contactMessageRoutes.js";
+import inquiryRoutes from "./routes/inquiryRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import departureRoutes from "./routes/departureRoutes.js";
@@ -22,6 +23,7 @@ import rankingRoutes from "./routes/rankingRoutes.js";
 import trekImageUploadRoutes from "./routes/trekImageUploadRoutes.js";
 import { TREK_IMAGE_DIR } from "./middleware/trekImageUpload.js";
 import { REVIEW_IMAGE_DIR } from "./middleware/reviewPhotoUpload.js";
+import { STORY_IMAGE_DIR } from "./middleware/storyCoverUpload.js";
 
 // Error handling middleware
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
@@ -88,8 +90,10 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/guides", guideRoutes);
 app.use("/api/contact-messages", contactMessageRoutes);
+app.use("/api/inquiries", inquiryRoutes);
 app.use("/api/uploads/treks", express.static(TREK_IMAGE_DIR, { fallthrough: true, maxAge: "1d" }));
 app.use("/api/uploads/reviews", express.static(REVIEW_IMAGE_DIR, { fallthrough: true, maxAge: "1d" }));
+app.use("/api/uploads/stories", express.static(STORY_IMAGE_DIR, { fallthrough: true, maxAge: "1d" }));
 app.use("/api/uploads/treks", trekImageUploadRoutes);
 app.use("/api/trip-requests", tripRequestRoutes);
 app.use("/api/rankings", rankingRoutes);

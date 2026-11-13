@@ -51,7 +51,7 @@ import {
 import { NotFoundPage } from "./MiscPages.jsx";
 import "./TrekDetailsUpgrade.css";
 
-const HimalayanMap = lazy(() => import("../../components/maps/HimalayanMap.jsx"));
+const TrekRouteMap = lazy(() => import("../../components/maps/TrekRouteMap.jsx"));
 
 export function TrekDetailPage() {
   const { slug } = useParams();
@@ -111,21 +111,31 @@ export function TrekDetailPage() {
               ? response.departures.map((departure) => ({ ...departure, trekSlug: slug }))
               : []
           );
-          setTrekReviews(Array.isArray(response.reviews) ? response.reviews : []);
+          api.reviews.getForTrek(response.trek._id)
+            .then((reviewResponse) => {
+              if (active) setTrekReviews(Array.isArray(reviewResponse.reviews) ? reviewResponse.reviews : []);
+            })
+            .catch((reviewError) => {
+              if (active) setReviewsError(reviewError.message || "Unable to load reviews for this trek.");
+            })
+            .finally(() => {
+              if (active) setReviewsLoading(false);
+            });
         } else {
           setTrekNotFound(true);
+          setReviewsLoading(false);
         }
       })
       .catch((error) => {
         if (active) {
           if (error.message.toLowerCase().includes("not found")) setTrekNotFound(true);
           else setTrekError(error.message || "Unable to load this trek.");
+          setReviewsLoading(false);
         }
       })
       .finally(() => {
         if (active) {
           setTrekLoading(false);
-          setReviewsLoading(false);
         }
       });
     return () => { active = false; };
@@ -148,10 +158,16 @@ export function TrekDetailPage() {
     message: "",
   });
   const [reviewSort, setReviewSort] = useState("newest");
-  const [reviewLinkForm, setReviewLinkForm] = useState({ bookingReference: "", email: "" });
-  const [reviewLinkSubmitting, setReviewLinkSubmitting] = useState(false);
-  const [reviewLinkMessage, setReviewLinkMessage] = useState("");
-  const [reviewLinkError, setReviewLinkError] = useState("");
+  const [reviewVerificationForm, setReviewVerificationForm] = useState({ bookingReference: "", email: "" });
+  const [reviewVerificationToken, setReviewVerificationToken] = useState("");
+  const [reviewVerifiedName, setReviewVerifiedName] = useState("");
+  const [reviewVerificationSubmitting, setReviewVerificationSubmitting] = useState(false);
+  const [reviewVerificationRejected, setReviewVerificationRejected] = useState(false);
+  const [reviewVerificationError, setReviewVerificationError] = useState("");
+  const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitMessage, setReviewSubmitMessage] = useState("");
+  const [reviewSubmitError, setReviewSubmitError] = useState("");
 
   if (trekLoading) {
     return <Page className="trek-detail-page"><p className="section-wrap" role="status">Loading trek details…</p></Page>;
@@ -256,11 +272,8 @@ export function TrekDetailPage() {
     setInquirySubmitting(true);
     setInquiryError("");
     try {
-      await api.contactMessages.create({
-        category: "expedition_inquiry",
-        trek: trek._id,
+      await api.inquiries.create({
         trekSlug: trek.slug,
-        trekTitle: trek.title,
         name: inquiryForm.name,
         email: inquiryForm.email,
         phone: inquiryForm.phone,
@@ -268,7 +281,6 @@ export function TrekDetailPage() {
         travelers: Number(inquiryForm.travelers),
         travelMonth: inquiryForm.travelMonth,
         message: inquiryForm.message,
-        topic: "Expedition inquiry",
       });
       notify("Your expedition inquiry has been sent to our team.");
       setInquiryModalOpen(false);
@@ -280,18 +292,44 @@ export function TrekDetailPage() {
     }
   };
 
-  const handleReviewLinkRequest = async (event) => {
+  const handleReviewVerification = async (event) => {
     event.preventDefault();
-    setReviewLinkSubmitting(true);
-    setReviewLinkMessage("");
-    setReviewLinkError("");
+    setReviewVerificationSubmitting(true);
+    setReviewVerificationRejected(false);
+    setReviewVerificationError("");
+    setReviewVerificationToken("");
     try {
-      const result = await api.reviews.requestVerification({ ...reviewLinkForm, trekSlug: trek.slug });
-      setReviewLinkMessage(result.message);
+      const result = await api.reviews.verifyBooking({ ...reviewVerificationForm, trekSlug: trek.slug });
+      setReviewVerificationToken(result.reviewToken);
+      setReviewVerifiedName(result.name || "");
+      setReviewForm({ rating: 0, comment: "" });
     } catch (error) {
-      setReviewLinkError(error.message || "We couldn't send a review link. Please try again.");
+      setReviewVerificationRejected(true);
+      setReviewVerificationError(error.message || "Only verified clients who have completed this specific trek can leave a review.");
     } finally {
-      setReviewLinkSubmitting(false);
+      setReviewVerificationSubmitting(false);
+    }
+  };
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    setReviewSubmitting(true);
+    setReviewSubmitMessage("");
+    setReviewSubmitError("");
+    try {
+      const result = await api.reviews.createVerified({
+        token: reviewVerificationToken,
+        rating: reviewForm.rating,
+        title: "Traveler review",
+        comment: reviewForm.comment,
+      });
+      setReviewSubmitMessage(result.message || "Your review was submitted and is awaiting approval.");
+      setReviewVerificationToken("");
+      setReviewForm({ rating: 0, comment: "" });
+    } catch (error) {
+      setReviewSubmitError(error.message || "Your review could not be submitted. Please try again.");
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -532,7 +570,7 @@ export function TrekDetailPage() {
                 const isOpen = openDays[idx];
 
                 return (
-                  <div key={idx} className={`itin-card${isOpen ? " is-open" : ""}`}>
+                  <div id={`trek-itinerary-day-${idx}`} key={idx} className={`itin-card${isOpen ? " is-open" : ""}`}>
                     <div className="itin-header" onClick={() => toggleDay(idx)}>
                       <div className="itin-header-left">
                         <span className="itin-day-badge">DAY {dayNum}</span>
@@ -569,7 +607,7 @@ export function TrekDetailPage() {
                             {stay && (
                               <div className="itin-meta-item">
                                 <BedDouble size={14} className="itin-meta-icon" />
-                                <span><strong>Stay at:</strong> {stay}</span>
+                                <span><strong>Stay at:</strong> {dayItem.stay}</span>
                               </div>
                             )}
                             {hours && (
@@ -721,7 +759,15 @@ export function TrekDetailPage() {
           <div className="map-section-v2" id="route-map" style={{ marginTop: "40px" }}>
             <h3 className="section-subheading">Interactive Route Geography & GPS Coordinates</h3>
             <Suspense fallback={<div className="map-placeholder">Loading interactive map...</div>}>
-              <HimalayanMap initialDestinationSlug={trek.region.toLowerCase()} />
+              <TrekRouteMap
+                trek={trek}
+                onSelectDay={(index) => {
+                  setOpenDays((previous) => ({ ...previous, [index]: true }));
+                  window.setTimeout(() => {
+                    document.getElementById(`trek-itinerary-day-${index}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 50);
+                }}
+              />
             </Suspense>
           </div>
 
@@ -809,26 +855,62 @@ export function TrekDetailPage() {
               </div>
             ) : (
               <div className="trek-content-empty trek-no-reviews">
-                <p>No approved reviews yet. Reviews are shared after travelers complete this trek.</p>
-                <Link to={`/booking/${trek.slug}`} className="text-link">Plan this trek <ArrowRight size={15} /></Link>
+                <p>No reviews yet.</p>
               </div>
             )}
             <div className="public-review-workflows">
-              <form className="public-review-form verified-review-form" onSubmit={handleReviewLinkRequest}>
-                <h3>Completed this trek with us?</h3>
-                <p>For a completed booking, request a secure review link using your booking reference and email. Review requests are checked against booking details; no traveler account is needed. You can also <Link to="/review/request">request a review link here</Link>.</p>
+              <form className="public-review-form verified-review-form" onSubmit={handleReviewVerification}>
+                <h3>Did you trek this route with Agaaman?</h3>
+                <p>To keep our reviews 100% authentic, we only accept reviews from verified travelers.</p>
                 <label>Booking reference
-                  <input value={reviewLinkForm.bookingReference} onChange={(event) => setReviewLinkForm({ ...reviewLinkForm, bookingReference: event.target.value })} required />
+                  <input value={reviewVerificationForm.bookingReference} onChange={(event) => setReviewVerificationForm({ ...reviewVerificationForm, bookingReference: event.target.value })} disabled={Boolean(reviewVerificationToken)} required />
                 </label>
                 <label>Booking email
-                  <input type="email" value={reviewLinkForm.email} onChange={(event) => setReviewLinkForm({ ...reviewLinkForm, email: event.target.value })} required />
+                  <input type="email" value={reviewVerificationForm.email} onChange={(event) => setReviewVerificationForm({ ...reviewVerificationForm, email: event.target.value })} disabled={Boolean(reviewVerificationToken)} required />
                 </label>
-                {reviewLinkError && <p className="public-form-error" role="alert">{reviewLinkError}</p>}
-                {reviewLinkMessage && <p className="public-form-success" role="status">{reviewLinkMessage}</p>}
-                <button className="button button-dark" type="submit" disabled={reviewLinkSubmitting}>
-                  {reviewLinkSubmitting ? "Requesting link…" : "Email me a verified review link"}
-                </button>
+                {reviewVerificationError && <p className="public-form-error" role="alert">{reviewVerificationError}</p>}
+                {reviewVerificationRejected && (
+                  <div className="trek-content-empty" role="status">🔒 Only verified clients who have completed this specific trek can leave a review.</div>
+                )}
+                {!reviewVerificationToken && (
+                  <button className="button button-dark" type="submit" disabled={reviewVerificationSubmitting}>
+                    {reviewVerificationSubmitting ? "Checking booking…" : "Verify Booking"}
+                  </button>
+                )}
               </form>
+              {reviewVerificationToken && (
+                <form className="public-review-form" onSubmit={handleReviewSubmit}>
+                  <h3>Write a Review{reviewVerifiedName ? `, ${reviewVerifiedName}` : ""}</h3>
+                  <fieldset>
+                    <legend>Your rating</legend>
+                    <div className="review-star-picker" role="radiogroup" aria-label="Choose a rating from 1 to 5 stars">
+                      {Array.from({ length: 5 }, (_, index) => {
+                        const rating = index + 1;
+                        return (
+                          <button
+                            key={rating}
+                            type="button"
+                            role="radio"
+                            aria-checked={reviewForm.rating === rating}
+                            aria-label={`${rating} ${rating === 1 ? "star" : "stars"}`}
+                            onClick={() => setReviewForm({ ...reviewForm, rating })}
+                          >
+                            <Star size={24} fill={rating <= reviewForm.rating ? "currentColor" : "none"} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <label>Review
+                    <textarea value={reviewForm.comment} onChange={(event) => setReviewForm({ ...reviewForm, comment: event.target.value })} minLength={5} maxLength={2000} required />
+                  </label>
+                  {reviewSubmitError && <p className="public-form-error" role="alert">{reviewSubmitError}</p>}
+                  {reviewSubmitMessage && <p className="public-form-success" role="status">{reviewSubmitMessage}</p>}
+                  <button className="button button-dark" type="submit" disabled={reviewSubmitting || !reviewForm.rating}>
+                    {reviewSubmitting ? "Submitting…" : "Submit Review"}
+                  </button>
+                </form>
+              )}
             </div>
           </section>
         </main>

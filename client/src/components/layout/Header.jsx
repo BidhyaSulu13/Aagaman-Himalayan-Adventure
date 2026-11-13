@@ -64,6 +64,12 @@ const guideSublinks = [
   },
 ];
 
+function travelerFirstName(user) {
+  const source = user?.name?.trim() || user?.email?.split("@")[0] || "Traveler";
+  const firstName = source.split(/[\s._-]+/).filter(Boolean)[0] || "Traveler";
+  return firstName.charAt(0).toUpperCase() + firstName.slice(1);
+}
+
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -638,14 +644,16 @@ export function Header() {
             <Link className="mobile-extra-link" to="/admin/dashboard" style={{ color: "#ea580c", fontWeight: 700 }}>
               ⚡ Admin Dashboard ({user.name})
             </Link>
-          ) : (
+          ) : !user ? (
             <Link className="mobile-extra-link" to="/admin/login" style={{ color: "#ea580c", fontWeight: 600 }}>
               🔒 Admin Login
             </Link>
-          )}
+          ) : null}
           <div className="mobile-actions">
             {user && user.role === "traveler" ? (
-              <Link to="/dashboard" className="button button-outline button-full">My Dashboard</Link>
+              <Link to="/dashboard" className="button button-outline button-full">{travelerFirstName(user)}'s Dashboard</Link>
+            ) : user?.role === "admin" ? (
+              <span style={{ color: "#d7e6df", fontSize: 13, padding: "10px 0" }}>Admin session active</span>
             ) : (
               <Link to="/login" className="button button-outline button-full">Log in</Link>
             )}
@@ -689,24 +697,24 @@ export function Header() {
               <ShieldCheck size={16} />
               <span>Admin Console</span>
             </Link>
-          ) : (
+          ) : !user ? (
             <Link to="/admin/login" className="admin-portal-link is-admin-badge" title="Sign In to Admin Console">
               <Lock size={15} />
               <span>Admin Login</span>
             </Link>
-          )}
+          ) : null}
 
           {user && user.role === "traveler" ? (
-            <Link to="/dashboard" className="traveler-login-link">
+            <Link to="/dashboard" className="traveler-login-link" title={user.email || "Open traveler dashboard"}>
               <UserCheck size={16} />
-              <span>My Dashboard</span>
+              <span>{travelerFirstName(user)}'s Dashboard</span>
             </Link>
-          ) : (
+          ) : !user ? (
             <Link to="/login" className="traveler-login-link">
               <UserCheck size={16} />
               <span>Log in</span>
             </Link>
-          )}
+          ) : null}
 
           {/* Plan Your Trip Button (Spade Orange Style) */}
           <Link to="/contact" className="button button-orange header-cta-btn nav-link-human">

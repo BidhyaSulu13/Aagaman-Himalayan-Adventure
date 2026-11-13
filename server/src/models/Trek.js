@@ -101,6 +101,11 @@ const trekSchema = new Schema(
       type: [String],
       default: [],
     },
+    mapImageUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     gallery: [
       {
         url: { type: String, required: true },

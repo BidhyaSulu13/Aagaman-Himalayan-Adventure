@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import {
   AlertCircle,
   ArrowRight,
+  BookOpen,
   Calendar,
   CheckCircle2,
   Clock,
@@ -21,6 +22,7 @@ import {
   ShieldCheck,
   Star,
   User,
+  Upload,
   XCircle,
 } from "lucide-react";
 import { Page } from "../../components/common/Page.jsx";
@@ -42,7 +44,7 @@ export function TravelerDashboard() {
   const requestedTab = searchParams.get("tab");
   const requestedBooking = searchParams.get("booking");
   const [activeTab, setActiveTab] = useState(
-    ["overview", "bookings", "reviews", "saved", "requests", "profile", "settings"].includes(requestedTab)
+    ["overview", "bookings", "reviews", "stories", "saved", "requests", "profile", "settings"].includes(requestedTab)
       ? requestedTab
       : "overview"
   );
@@ -59,6 +61,12 @@ export function TravelerDashboard() {
   const [reviewForm, setReviewForm] = useState({ rating: 5, title: "", comment: "" });
   const [reviewPhotos, setReviewPhotos] = useState([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [myStories, setMyStories] = useState([]);
+  const [storyForm, setStoryForm] = useState({ bookingId: "", title: "", content: "", videoUrl: "", instagramUrl: "", facebookUrl: "" });
+  const [storyPhotos, setStoryPhotos] = useState([]);
+  const [storyVideo, setStoryVideo] = useState(null);
+  const [editingStoryId, setEditingStoryId] = useState(null);
+  const [storySubmitting, setStorySubmitting] = useState(false);
 
   // Profile Form state
   const [profileForm, setProfileForm] = useState({
@@ -78,7 +86,7 @@ export function TravelerDashboard() {
   });
 
   useEffect(() => {
-    if (["overview", "bookings", "reviews", "saved", "requests", "profile", "settings"].includes(requestedTab)) {
+    if (["overview", "bookings", "reviews", "stories", "saved", "requests", "profile", "settings"].includes(requestedTab)) {
       setActiveTab(requestedTab);
     }
   }, [requestedTab]);
@@ -110,8 +118,9 @@ export function TravelerDashboard() {
     Promise.allSettled([
       api.bookings.getMy(),
       api.tripRequests.getMy(),
+      api.articles.getMine(),
     ])
-      .then(([bookingsRes, requestsRes]) => {
+      .then(([bookingsRes, requestsRes, storiesRes]) => {
         if (bookingsRes.status === "fulfilled" && bookingsRes.value?.success) {
           setBookings(bookingsRes.value.bookings || []);
         } else {
@@ -123,6 +132,9 @@ export function TravelerDashboard() {
         }
         if (requestsRes.status === "fulfilled" && requestsRes.value?.success) {
           setTripRequests(requestsRes.value.tripRequests || []);
+        }
+        if (storiesRes.status === "fulfilled" && storiesRes.value?.success) {
+          setMyStories(storiesRes.value.articles || []);
         }
       })
       .finally(() => {
@@ -210,6 +222,65 @@ export function TravelerDashboard() {
     } catch (err) {
       notify(err.message || "Failed to process cancellation.");
     }
+  };
+
+  const handleStorySubmit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!storyForm.bookingId) {
+      notify("Choose one of your completed treks.");
+      return;
+    }
+    if (!editingStoryId && !storyPhotos.length) {
+      notify("Add at least one trek photograph.");
+      return;
+    }
+    if (storyPhotos.length > 8 || storyPhotos.some((photo) => !["image/jpeg", "image/png", "image/webp"].includes(photo.type) || photo.size > 5 * 1024 * 1024)) {
+      notify("Choose up to eight JPEG, PNG, or WebP photographs, each no larger than 5 MB.");
+      return;
+    }
+    if (storyVideo && (!["video/mp4", "video/webm"].includes(storyVideo.type) || storyVideo.size > 50 * 1024 * 1024)) {
+      notify("Choose an MP4 or WebM video no larger than 50 MB.");
+      return;
+    }
+
+    setStorySubmitting(true);
+    try {
+      const body = new FormData();
+      body.append("bookingId", storyForm.bookingId);
+      body.append("title", storyForm.title.trim());
+      body.append("content", storyForm.content.trim());
+      body.append("videoUrl", storyForm.videoUrl.trim());
+      body.append("instagramUrl", storyForm.instagramUrl.trim());
+      body.append("facebookUrl", storyForm.facebookUrl.trim());
+      storyPhotos.forEach((photo) => body.append("photos", photo));
+      if (storyVideo) body.append("videoFile", storyVideo);
+      const response = editingStoryId
+        ? await api.articles.updateStory(editingStoryId, body)
+        : await api.articles.submitStory(body);
+      setMyStories((current) => editingStoryId
+        ? current.map((story) => story._id === editingStoryId ? response.article : story)
+        : [response.article, ...current]);
+      setStoryForm({ bookingId: "", title: "", content: "", videoUrl: "", instagramUrl: "", facebookUrl: "" });
+      setStoryPhotos([]);
+      setStoryVideo(null);
+      setEditingStoryId(null);
+      form.reset();
+      notify(response.message || "Your trek story was submitted for review.");
+    } catch (error) {
+      notify(error.message || "Unable to submit your trek story.");
+    } finally {
+      setStorySubmitting(false);
+    }
+  };
+
+  const handleReviseStory = (story) => {
+    setEditingStoryId(story._id);
+    setStoryForm({ bookingId: story.completedBooking?._id || "", title: story.title || "", content: story.content || "", videoUrl: story.videoUrl || "", instagramUrl: story.instagramUrl || "", facebookUrl: story.facebookUrl || "" });
+    setStoryPhotos([]);
+    setStoryVideo(null);
+    setActiveTab("stories");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleReviewSubmit = async (e, booking) => {
@@ -377,6 +448,13 @@ export function TravelerDashboard() {
   const reviewableBookings = bookings.filter(
     (booking) => booking.bookingStatus === "Completed" && !booking.review
   );
+  const completedBookings = bookings.filter((booking) => booking.bookingStatus === "Completed");
+  const experienceBookings = completedBookings.filter((booking) => {
+    const bookingId = booking._id || booking.id;
+    return editingStoryId
+      ? myStories.find((story) => story._id === editingStoryId)?.completedBooking?._id === bookingId
+      : !myStories.some((story) => (story.completedBooking?._id || story.completedBooking) === bookingId && story.blocksDuplicateSubmission !== false);
+  });
 
   return (
     <Page className="traveler-dashboard-page">
@@ -441,6 +519,13 @@ export function TravelerDashboard() {
                 onClick={() => setActiveTab("reviews")}
               >
                 <MessageSquare size={18} /> My Reviews ({submittedReviews.length})
+              </button>
+              <button
+                type="button"
+                className={`dash-nav-btn${activeTab === "stories" ? " is-active" : ""}`}
+                onClick={() => setActiveTab("stories")}
+              >
+                <BookOpen size={18} /> My Trek Experiences ({myStories.length})
               </button>
               <button
                 type="button"
@@ -759,6 +844,88 @@ export function TravelerDashboard() {
                         >
                           <Star size={15} /> Write a Review
                         </button>}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "stories" && (
+              <div className="dash-tab-pane trek-story-pane">
+                <div className="pane-header-flex">
+                  <div>
+                    <h2>My Trek Experiences</h2>
+                    <p className="dash-section-desc">Share a real journey from a completed Agaaman trek. Our editorial team reviews each experience before it appears in the public journal.</p>
+                  </div>
+                  <span className="trek-story-status-note"><ShieldCheck size={16} /> Verified trip required</span>
+                </div>
+
+                {experienceBookings.length === 0 ? (
+                  <div className="dash-empty-state">
+                    <BookOpen size={36} />
+                    <h4>{completedBookings.length === 0 ? "Your completed trek unlocks experiences" : "All completed treks have an experience submission"}</h4>
+                    <p>{completedBookings.length === 0 ? "Once an Agaaman departure is marked complete, you can share your route, favorite moments, and advice for other trekkers." : "Each completed booking can be used for one experience. You can revise a returned submission from your list."}</p>
+                    {completedBookings.length === 0 && <Link to="/treks" className="button button-orange button-small">Explore Treks</Link>}
+                  </div>
+                ) : (
+                  <form className="trek-story-form" onSubmit={handleStorySubmit}>
+                    <label className="form-field">
+                      Completed trek booking
+                      <select value={storyForm.bookingId} onChange={(event) => setStoryForm({ ...storyForm, bookingId: event.target.value })} required disabled={Boolean(editingStoryId)}>
+                        <option value="">Choose a completed trek</option>
+                        {experienceBookings.map((booking) => <option key={booking._id} value={booking._id}>{booking.trek?.title || "Himalayan Trek"} · {booking.bookingReference}</option>)}
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      Experience title
+                      <input value={storyForm.title} onChange={(event) => setStoryForm({ ...storyForm, title: event.target.value })} maxLength={200} placeholder="Give your journey a title" required />
+                    </label>
+                    <label className="form-field">
+                      Your experience
+                      <textarea value={storyForm.content} onChange={(event) => setStoryForm({ ...storyForm, content: event.target.value })} minLength={80} maxLength={30000} rows={9} placeholder="Tell us about the route, people, moments, and advice you would share with the next trekker..." required />
+                      <small>{storyForm.content.length}/30,000 characters · At least 80 characters</small>
+                    </label>
+                    <label className="trek-story-upload">
+                      <Upload size={19} />
+                      <span><strong>Photographs</strong><small>{storyPhotos.length ? `${storyPhotos.length} selected` : editingStoryId ? "Optional · keep existing photographs or add up to 8 new ones" : "Select up to 8 JPEG, PNG, or WebP images · 5 MB each"}</small></span>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setStoryPhotos(Array.from(event.target.files || []))} required={!editingStoryId} />
+                    </label>
+                    <label className="form-field">
+                      Video file (optional)
+                      <input type="file" accept="video/mp4,video/webm" onChange={(event) => setStoryVideo(event.target.files?.[0] || null)} />
+                      <small>{storyVideo ? storyVideo.name : "MP4 or WebM, up to 50 MB"}</small>
+                    </label>
+                    <label className="form-field">
+                      Video link (optional)
+                      <input type="url" value={storyForm.videoUrl} onChange={(event) => setStoryForm({ ...storyForm, videoUrl: event.target.value })} placeholder="https://youtu.be/... or https://vimeo.com/..." />
+                    </label>
+                    <div className="form-row">
+                      <label className="form-field">
+                        Instagram post (optional)
+                        <input type="url" value={storyForm.instagramUrl} onChange={(event) => setStoryForm({ ...storyForm, instagramUrl: event.target.value })} placeholder="https://www.instagram.com/p/..." />
+                      </label>
+                      <label className="form-field">
+                        Facebook post (optional)
+                        <input type="url" value={storyForm.facebookUrl} onChange={(event) => setStoryForm({ ...storyForm, facebookUrl: event.target.value })} placeholder="https://www.facebook.com/..." />
+                      </label>
+                    </div>
+                    <button className="button button-orange" type="submit" disabled={storySubmitting}>
+                      {storySubmitting ? "Submitting experience..." : editingStoryId ? "Resubmit for review" : "Submit for editorial review"}
+                    </button>
+                    {editingStoryId && <button type="button" className="button button-secondary" onClick={() => { setEditingStoryId(null); setStoryForm({ bookingId: "", title: "", content: "", videoUrl: "", instagramUrl: "", facebookUrl: "" }); setStoryPhotos([]); setStoryVideo(null); }}>Cancel revision</button>}
+                  </form>
+                )}
+
+                {myStories.length > 0 && (
+                  <div className="trek-story-submissions">
+                    <h3>My submissions</h3>
+                    {myStories.map((story) => (
+                      <article key={story._id}>
+                        <div><strong>{story.title}</strong><span>{story.relatedTrek?.title || "Completed trek"}</span></div>
+                        <span className={`story-status-pill is-${story.status}`}>{story.status === "pending_review" ? "Pending" : story.status === "published" ? "Published" : story.status === "rejected" ? "Rejected" : story.status === "approved" ? "Approved" : "Draft"}</span>
+                        {story.moderationNote && <p>{story.moderationNote}</p>}
+                        {(story.status === "rejected" || story.status === "draft") && <button type="button" className="button button-small" onClick={() => handleReviseStory(story)}>Revise experience</button>}
                       </article>
                     ))}
                   </div>

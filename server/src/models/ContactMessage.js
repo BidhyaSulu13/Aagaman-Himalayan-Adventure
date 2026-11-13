@@ -27,6 +27,15 @@ const contactMessageSchema = new Schema(
       default: "New",
       index: true,
     },
+    replies: [{
+      message: { type: String, required: true, trim: true, maxlength: 5000 },
+      sentBy: { type: Schema.Types.ObjectId, ref: "User" },
+      sentByName: { type: String, trim: true, default: "Agaaman team", maxlength: 120 },
+      deliveryStatus: { type: String, enum: ["Pending", "Sent", "Failed"], default: "Pending" },
+      deliveryError: { type: String, trim: true, default: "", maxlength: 300 },
+      sentAt: { type: Date },
+      messageId: { type: String, trim: true, default: "", maxlength: 300 },
+    }],
   },
   { timestamps: true }
 );

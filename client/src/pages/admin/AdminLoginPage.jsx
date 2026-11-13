@@ -6,7 +6,7 @@ import { useToast } from "../../context/ToastContext.jsx";
 import "./AdminDashboard.css";
 
 export function AdminLoginPage() {
-  const { loginAdmin, user, isAdmin, loading: authLoading } = useAuth();
+  const { loginAdmin, logout, user, isAdmin, loading: authLoading } = useAuth();
   const notify = useToast();
   const navigate = useNavigate();
 
@@ -41,6 +41,12 @@ export function AdminLoginPage() {
     }
   };
 
+  const handleTravelerLogout = async () => {
+    await logout();
+    setErrorMsg("");
+    notify("Traveler account signed out. You can now sign in as admin.");
+  };
+
   if (authLoading || (user && isAdmin)) return null;
 
   return (
@@ -73,15 +79,21 @@ export function AdminLoginPage() {
             </p>
           </div>
 
-          {errorMsg && (
-            <div className="admin-login-error">
-              <ShieldAlert size={18} />
-              <span>{errorMsg}</span>
+          {user && user.role !== "admin" ? (
+            <div className="admin-login-session-lock" role="status">
+              <div className="admin-login-error"><ShieldAlert size={18} /><span>Traveler account active. Sign out before opening the admin session.</span></div>
+              <button type="button" className="admin-login-submit-btn" onClick={handleTravelerLogout}>Log out traveler account</button>
             </div>
-          )}
+          ) : (
+            <>
+              {errorMsg && (
+                <div className="admin-login-error">
+                  <ShieldAlert size={18} />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
 
-          {/* Form */}
-          <form onSubmit={handleAdminLogin} className="admin-login-form">
+              <form onSubmit={handleAdminLogin} className="admin-login-form">
             <div className="admin-input-group">
               <label htmlFor="admin-email">Admin Email Address</label>
               <div className="admin-input-wrap">
@@ -135,7 +147,9 @@ export function AdminLoginPage() {
                 </span>
               )}
             </button>
-          </form>
+              </form>
+            </>
+          )}
 
           <footer className="admin-card-footer">
             <Lock size={13} />

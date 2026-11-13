@@ -9,5 +9,6 @@ export { Article } from "./Article.js";
 export { Guide } from "./Guide.js";
 export { TripRequest } from "./TripRequest.js";
 export { ContactMessage } from "./ContactMessage.js";
+export { Inquiry } from "./Inquiry.js";
 export { Setting } from "./Setting.js";
 export { TrekView } from "./TrekView.js";

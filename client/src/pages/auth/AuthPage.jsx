@@ -14,7 +14,7 @@ export function AuthPage({ mode }) {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { login, register, loginWithGoogle, loginWithEmailLink } = useAuth();
+  const { login, register, loginWithGoogle, loginWithEmailLink, user, logout } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState(location.state?.email || searchParams.get("email") || "");
   const [password, setPassword] = useState("");
@@ -101,6 +101,10 @@ export function AuthPage({ mode }) {
 
   useEffect(() => {
     if (!isEmailLink || !token) return undefined;
+    if (user?.role === "admin") {
+      setError("Log out of the admin account before using a traveler sign-in link.");
+      return undefined;
+    }
     let active = true;
     if (!emailLinkPromiseRef.current) {
       setBusy(true);
@@ -117,7 +121,7 @@ export function AuthPage({ mode }) {
         if (active) setBusy(false);
       });
     return () => { active = false; };
-  }, [isEmailLink, token, loginWithEmailLink, navigate, searchParams]);
+  }, [isEmailLink, token, loginWithEmailLink, navigate, searchParams, user]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -172,6 +176,20 @@ export function AuthPage({ mode }) {
             {error || (busy ? "Verifying your one-time sign-in link…" : "Opening your traveler dashboard…")}
           </p>
           {error && <Link className="button button-dark button-full" to="/login">Return to sign in</Link>}
+        </div>
+      </Page>
+    );
+  }
+
+  if (user?.role === "admin" && (isLogin || isRegister)) {
+    return (
+      <Page className="auth-page">
+        <div className="auth-card">
+          <span className="auth-mark"><Mountain size={21} /></span>
+          <p className="eyebrow">Account session active</p>
+          <h1>Admin is signed in.</h1>
+          <p className="auth-description">Log out of the admin account before signing in or registering as a traveler. Your current session will stay active until you choose to end it.</p>
+          <button className="button button-dark button-full" type="button" onClick={logout}>Log out admin and continue</button>
         </div>
       </Page>
     );

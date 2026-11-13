@@ -1,7 +1,66 @@
 import { Trek } from "../models/Trek.js";
 import { Departure } from "../models/Departure.js";
-import { Review } from "../models/Review.js";
 import { getVerifiedReviewStats } from "../services/rankingService.js";
+
+const itineraryDestinations = [
+  ["Annapurna Base Camp", "High Altitude Teahouse Lodge, Annapurna Base Camp"],
+  ["Thorong High Camp", "High Pass Lodge, Thorong High Camp"],
+  ["Gorak Shep", "High Altitude Teahouse Lodge, Gorak Shep"],
+  ["Ghorepani", "Viewpoint Lodge, Ghorepani"],
+  ["Gosainkunda", "Lakeside Teahouse, Gosainkunda"],
+  ["Machha Khola", "Teahouse Lodge, Machha Khola"],
+  ["Kyanjin Gompa", "Teahouse Lodge, Kyanjin Gompa"],
+  ["Namche Bazaar", "Teahouse Lodge, Namche Bazaar"],
+  ["Namche", "Teahouse Lodge, Namche Bazaar"],
+  ["Tengboche", "Everest View Lodge, Tengboche"],
+  ["Dingboche", "Teahouse Lodge, Dingboche"],
+  ["Dharamsala", "High Pass Lodge, Dharamsala"],
+  ["Ghandruk", "Village Teahouse, Ghandruk"],
+  ["Tadapani", "Panorama Teahouse, Tadapani"],
+  ["Chhomrong", "Teahouse Lodge, Chhomrong"],
+  ["Dingboche", "Teahouse Lodge, Dingboche"],
+  ["Lobuche", "High Altitude Teahouse Lodge, Lobuche"],
+  ["Pheriche", "Teahouse Lodge, Pheriche"],
+  ["Phakding", "Teahouse Lodge, Phakding"],
+  ["Ulleri", "Teahouse Lodge, Ulleri"],
+  ["Pokhara", "Hotel / Guesthouse, Pokhara"],
+  ["Kathmandu", "Hotel / Guesthouse, Kathmandu"],
+  ["Lukla", "Teahouse Lodge, Lukla"],
+  ["Syabrubesi", "Teahouse Lodge, Syabrubesi"],
+  ["Namrung", "Village Guesthouse, Namrung"],
+  ["Samagaun", "Teahouse Lodge, Samagaun"],
+  ["Samdo", "Teahouse Lodge, Samdo"],
+  ["Bhimtang", "Teahouse Lodge, Bhimtang"],
+  ["Dhunche", "Guesthouse, Dhunche"],
+  ["Gokyo", "High Altitude Teahouse Lodge, Gokyo"],
+  ["Manang", "Teahouse Lodge, Manang"],
+  ["Muktinath", "Guesthouse, Muktinath"],
+  ["Pisang", "Teahouse Lodge, Pisang"],
+  ["Lama Hotel", "Teahouse Lodge, Lama Hotel"],
+  ["Langtang", "Teahouse Lodge, Langtang Village"],
+];
+
+function destinationStayForDay(day) {
+  const dayText = `${day.title || ""} ${day.to || ""} ${day.location || ""}`;
+  const match = itineraryDestinations
+    .map(([destination, stay]) => ({ destination, stay, index: dayText.toLowerCase().lastIndexOf(destination.toLowerCase()) }))
+    .filter((item) => item.index >= 0)
+    .sort((first, second) => second.index - first.index)[0];
+  return match?.stay || "Standard Mountain Lodge";
+}
+
+function withItineraryStays(trek) {
+  const trekData = typeof trek.toObject === "function" ? trek.toObject() : trek;
+  return {
+    ...trekData,
+    itinerary: (trekData.itinerary || []).map((day) => ({
+      ...day,
+      stay: day.stay && !/^mountain teahouse(?: lodge)?$/i.test(day.stay.trim())
+        ? day.stay
+        : destinationStayForDay(day),
+    })),
+  };
+}
 
 // GET /api/treks
 export async function getTreks(req, res, next) {
@@ -83,7 +142,7 @@ export async function getTreks(req, res, next) {
         .sort({ createdAt: -1 });
       const reviewStats = await getVerifiedReviewStats(allTreks.map((item) => item._id));
       const ratedTreks = allTreks.map((item) => {
-        const trekData = item.toObject();
+        const trekData = withItineraryStays(item);
         const stats = reviewStats.get(item._id.toString());
         trekData.rating = stats?.rating ?? 0;
         trekData.reviewCount = stats?.count ?? 0;
@@ -112,7 +171,7 @@ export async function getTreks(req, res, next) {
       treks = trekRecords;
       total = count;
       treksWithRatings = trekRecords.map((item) => {
-        const trekData = item.toObject();
+        const trekData = withItineraryStays(item);
         const stats = reviewStats.get(item._id.toString());
         trekData.rating = stats?.rating ?? 0;
         trekData.reviewCount = stats?.count ?? 0;
@@ -128,7 +187,7 @@ export async function getTreks(req, res, next) {
       total,
       page: pageNum,
       pages: Math.ceil(total / limitNum),
-      treks: treksWithRatings,
+      treks: treksWithRatings.map(withItineraryStays),
     });
   } catch (error) {
     next(error);
@@ -164,26 +223,12 @@ export async function getTrekBySlug(req, res, next) {
     trek.reviewCount = officialStats?.count ?? 0;
     trek.approvedReviewsCount = officialStats?.count ?? 0;
 
-    // Publicly show approved guest and verified reviews; only completed bookings can be displayed.
-    const reviews = await Review.find({
-      trek: trek._id,
-      moderationStatus: "approved",
-    })
-      .populate("user", "name avatar nationality")
-      .populate("booking", "bookingStatus")
-      .sort({ createdAt: -1 });
-    const eligibleReviews = reviews.filter(
-      (review) =>
-        review.verificationStatus === "Verified Trekker" &&
-        review.booking?.bookingStatus === "Completed"
-    );
-    eligibleReviews.forEach((review) => { review.booking = undefined; });
+    const trekResponse = withItineraryStays(trek);
 
     res.json({
       success: true,
-      trek,
+      trek: trekResponse,
       departures,
-      reviews: eligibleReviews,
     });
   } catch (error) {
     next(error);

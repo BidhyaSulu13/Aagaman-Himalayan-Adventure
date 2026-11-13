@@ -110,7 +110,7 @@ export function CustomizeTripPage() {
 
   if (confirmedInquiry) {
     return (
-      <div className="booking-page-wrap">
+      <div className="booking-page-wrap customize-trip-page">
         <div className="booking-receipt-surface">
           <div className="receipt-icon-bubble" style={{ background: "#fff7ed", color: "#ea580c" }}>
             <Sparkles size={40} />
@@ -163,7 +163,7 @@ export function CustomizeTripPage() {
   }
 
   return (
-    <div className="booking-page-wrap">
+    <div className="booking-page-wrap customize-trip-page">
       {/* Header Banner */}
       <section className="booking-hero-banner">
         <div className="booking-banner-inner">

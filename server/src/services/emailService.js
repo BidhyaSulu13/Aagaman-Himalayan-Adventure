@@ -216,3 +216,21 @@ export async function sendReviewVerificationEmail({ email, name, trekTitle, book
     html: `<p>Hello ${safeName},</p><p>Use this secure link to review your completed <strong>${safeTrekTitle}</strong> trek:</p><p><a href="${verificationUrl}">Write your verified trek review</a></p><p>This link expires in 30 minutes and can be used once. If you did not request this, ignore this email.</p>`,
   });
 }
+
+export async function sendInquiryReplyEmail({ email, travelerName, trekTitle, topic, originalMessage, reply }) {
+  const inquirySubject = trekTitle || topic || "general inquiry";
+  const safeName = escapeHtml(travelerName || "Traveler");
+  const safeTrekTitle = escapeHtml(inquirySubject);
+  const safeOriginalMessage = escapeHtml(originalMessage || "");
+  const safeReply = escapeHtml(reply || "");
+  const sender = process.env.SMTP_FROM || process.env.SMTP_USER || "Agaaman Himalayan Adventure";
+  const mailResult = await getTransporter().sendMail({
+    from: sender,
+    to: email,
+    replyTo: process.env.SMTP_USER || undefined,
+    subject: `Reply to your inquiry about ${inquirySubject} | Agaaman Himalayan Adventure`,
+    text: `Namaste ${travelerName || "Traveler"},\n\nOur team has replied to your inquiry about ${inquirySubject}.\n\nYour question:\n${originalMessage}\n\nOur reply:\n${reply}\n\nYou can reply directly to this email if you have another question.\n\nAgaaman Himalayan Adventure`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;padding:28px;color:#172033"><div style="background:#083c34;border-radius:12px 12px 0 0;padding:22px 26px;color:#fff"><p style="margin:0 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b8d5cf">Agaaman Himalayan Adventure</p><h1 style="font-size:22px;margin:0">A reply about your trek</h1></div><div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:26px"><p>Namaste ${safeName},</p><p>Our team has replied to your inquiry about <strong>${safeTrekTitle}</strong>.</p><div style="margin:20px 0;padding:16px 18px;background:#f8fafc;border-left:3px solid #cbd5e1;border-radius:6px"><p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Your question</p><p style="margin:0;white-space:pre-wrap;line-height:1.6">${safeOriginalMessage}</p></div><div style="margin:20px 0;padding:16px 18px;background:#f0fdf4;border-left:3px solid #0f766e;border-radius:6px"><p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#0f766e;text-transform:uppercase">Our reply</p><p style="margin:0;white-space:pre-wrap;line-height:1.6">${safeReply}</p></div><p style="color:#475569">You can reply directly to this email if you have another question.</p><p style="margin-top:28px;font-size:13px;color:#64748b">Agaaman Himalayan Adventure<br>Thamel, Kathmandu, Nepal</p></div></div>`,
+  });
+  return { messageId: mailResult.messageId };
+}

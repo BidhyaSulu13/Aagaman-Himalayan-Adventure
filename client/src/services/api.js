@@ -155,6 +155,7 @@ export const api = {
     },
     getForTrek: (trekId) => request(`/reviews/trek/${trekId}`),
     create: (body) => request("/reviews", { method: "POST", body }),
+    verifyBooking: (body) => request("/reviews/verify-booking", { method: "POST", body }),
     requestVerification: (body) =>
       request("/reviews/request-verification", { method: "POST", body }),
     getVerification: (token) => request(`/reviews/verify/${encodeURIComponent(token)}`),
@@ -182,8 +183,12 @@ export const api = {
       return request(`/articles${q ? `?${q}` : ""}`);
     },
     getAdminAll: () => request("/articles/admin"),
+    getMine: () => request("/articles/mine"),
     getBySlug: (slug) => request(`/articles/${slug}`),
     create: (body) => request("/articles", { method: "POST", body }),
+    submitStory: (body) => request("/articles/stories", { method: "POST", body }),
+      updateStory: (id, body) => request(`/articles/stories/${id}`, { method: "PATCH", body }),
+    moderateStory: (id, body) => request(`/articles/${id}/moderate-story`, { method: "PATCH", body }),
     update: (id, body) => request(`/articles/${id}`, { method: "PUT", body }),
     delete: (id) => request(`/articles/${id}`, { method: "DELETE" }),
   },
@@ -214,6 +219,13 @@ export const api = {
     getAll: () => request("/contact-messages"),
     updateStatus: (id, status) =>
       request(`/contact-messages/${id}/status`, { method: "PATCH", body: { status } }),
+  },
+
+  inquiries: {
+    create: (body) => request("/inquiries", { method: "POST", body }),
+    getAdminAll: () => request("/inquiries/admin"),
+    updateStatus: (id, status) => request(`/inquiries/${id}/status`, { method: "PATCH", body: { status } }),
+    reply: (id, reply) => request(`/inquiries/${id}/reply`, { method: "POST", body: { reply } }),
   },
 
   uploads: {

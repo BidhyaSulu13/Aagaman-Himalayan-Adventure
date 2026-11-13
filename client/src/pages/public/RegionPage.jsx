@@ -187,6 +187,11 @@ export function RegionPage() {
             </div>
           </div>
         </div>
+        {regionData.image && (
+          <div className="region-hero-visual" aria-label={`${regionData.label || regionData.name} landscape`} role="img">
+            <img src={regionData.image} alt={`${regionData.label || regionData.name} mountain landscape`} fetchPriority="high" />
+          </div>
+        )}
       </section>
 
       {/* Region Highlights & Permits Overview */}

@@ -29,44 +29,59 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (email, password) => {
+    if (user && user.role !== "traveler") {
+      throw new Error("Log out of your admin account before signing in as a traveler.");
+    }
     const res = await api.auth.login({ email, password });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  }, []);
+  }, [user]);
 
   const loginAdmin = useCallback(async (email, password) => {
+    if (user && user.role !== "admin") {
+      throw new Error("Log out of your traveler account before signing in as an admin.");
+    }
     const res = await api.auth.adminLogin({ email, password });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  }, []);
+  }, [user]);
 
   const loginWithGoogle = useCallback(async (credential) => {
+    if (user && user.role !== "traveler") {
+      throw new Error("Log out of your admin account before signing in as a traveler.");
+    }
     const res = await api.auth.googleLogin({ credential });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  }, []);
+  }, [user]);
 
   const loginWithEmailLink = useCallback(async (token) => {
+    if (user && user.role !== "traveler") {
+      throw new Error("Log out of your admin account before signing in as a traveler.");
+    }
     const res = await api.auth.verifyLoginLink({ token });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  }, []);
+  }, [user]);
 
   const register = useCallback(async (name, email, password) => {
+    if (user && user.role !== "traveler") {
+      throw new Error("Log out of your admin account before creating a traveler session.");
+    }
     const res = await api.auth.register({ name, email, password });
     if (res.success && res.user) {
       setUser(res.user);
     }
     return res;
-  }, []);
+  }, [user]);
 
   const logout = async () => {
     try {

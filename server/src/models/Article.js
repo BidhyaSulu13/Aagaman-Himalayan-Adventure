@@ -31,13 +31,77 @@ const articleSchema = new Schema(
       type: String,
       required: [true, "Cover image URL is required"],
     },
-    author: {
+    type: {
       type: String,
-      default: "Dawa Sherpa",
+      enum: ["guide", "story"],
+      default: "guide",
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ["draft", "pending_review", "approved", "rejected", "published", "unpublished"],
+      default: "draft",
+      index: true,
+    },
+    author: {
+      // Mixed keeps older articles with a plain-text author readable during migration.
+      type: Schema.Types.Mixed,
+      default: () => ({ name: "Dawa Sherpa", role: "Agaaman Travel Guide", avatarUrl: "", isVerifiedTrekker: false }),
+    },
+    relatedTrek: {
+      type: Schema.Types.ObjectId,
+      ref: "Trek",
+      default: null,
+      index: true,
+    },
+    completedBooking: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+      index: true,
+    },
+    blocksDuplicateSubmission: {
+      type: Boolean,
+      default: true,
+    },
+    photos: {
+      type: [String],
+      default: [],
+    },
+    videoUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    instagramUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    facebookUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    submittedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+    moderationNote: {
+      type: String,
+      default: "",
+      maxlength: [1000, "Moderation note cannot exceed 1000 characters"],
     },
     category: {
       type: String,
-      default: "Field Notes",
+      default: "Behind the Adventure",
       index: true,
     },
     readTime: {
@@ -46,8 +110,8 @@ const articleSchema = new Schema(
     },
     publicationStatus: {
       type: String,
-      enum: ["Draft", "Published", "Archived"],
-      default: "Published",
+      enum: ["Draft", "Published", "Unpublished", "Archived"],
+      default: "Draft",
       index: true,
     },
     publicationDate: {
@@ -58,6 +122,14 @@ const articleSchema = new Schema(
   },
   {
     timestamps: true,
+  }
+);
+
+articleSchema.index(
+  { completedBooking: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { type: "story", completedBooking: { $type: "objectId" }, blocksDuplicateSubmission: true },
   }
 );
 

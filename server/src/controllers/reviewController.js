@@ -142,6 +142,47 @@ export async function requestReviewVerification(req, res, next) {
   }
 }
 
+export async function verifyCompletedTrekBooking(req, res, next) {
+  try {
+    const bookingReference = String(req.body.bookingReference || "").trim().toUpperCase();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const trekSlug = String(req.body.trekSlug || "").trim().toLowerCase();
+    if (!bookingReference || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !trekSlug) {
+      return res.status(400).json({ success: false, message: "Enter the booking reference and booking email." });
+    }
+
+    const trek = await Trek.findOne({ slug: trekSlug, published: true, isArchived: { $ne: true } }).select("_id");
+    const booking = trek ? await Booking.findOne({
+      bookingReference,
+      bookingStatus: "Completed",
+      trek: trek._id,
+    }).select("+reviewVerificationTokenHash +reviewVerificationEmail +reviewVerificationExpiresAt travelerDetails") : null;
+
+    if (!booking || !booking.travelerDetails.some((detail) => detail.email.toLowerCase() === email) || await Review.exists({ booking: booking._id })) {
+      return res.status(403).json({
+        success: false,
+        message: "Only verified clients who have completed this specific trek can leave a review.",
+      });
+    }
+
+    const traveler = booking.travelerDetails.find((detail) => detail.email.toLowerCase() === email);
+    const token = randomBytes(32).toString("hex");
+    booking.reviewVerificationTokenHash = createHash("sha256").update(token).digest("hex");
+    booking.reviewVerificationEmail = email;
+    booking.reviewVerificationExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    await booking.save();
+
+    return res.json({
+      success: true,
+      reviewToken: token,
+      name: traveler?.fullName || "",
+      message: "Booking verified. You can now submit your review.",
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function findBookingForReviewToken(token) {
   const tokenHash = createHash("sha256").update(token).digest("hex");
   return Booking.findOne({

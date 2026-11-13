@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
+  BookOpen,
   Calendar,
   Check,
   CheckCheck,
@@ -62,9 +63,9 @@ export function AdminPage() {
   const { tab } = useParams();
 
   // Validate active sub-route or default to dashboard
-  const validTabs = ["dashboard", "treks", "regions", "destinations", "departures", "bookings", "booking", "favorites", "contacts", "users", "content", "guides", "settings"];
+  const validTabs = ["dashboard", "treks", "regions", "destinations", "departures", "bookings", "booking", "favorites", "contacts", "inquiries", "users", "content", "guides", "settings"];
   const activeTab = tab === "booking" ? "bookings" : validTabs.includes(tab) ? tab : "dashboard";
-  const [contentSubTab, setContentSubTab] = useState("articles"); // "articles" | "reviews"
+  const [contentSubTab, setContentSubTab] = useState("articles"); // "articles" | "stories" | "reviews"
 
   // Auth Guard
   useEffect(() => {
@@ -100,8 +101,16 @@ export function AdminPage() {
   const [contactMessagesList, setContactMessagesList] = useState([]);
   const [contactMessagesError, setContactMessagesError] = useState("");
   const [contactMessagesLoading, setContactMessagesLoading] = useState(true);
+  const [inquiriesList, setInquiriesList] = useState([]);
+  const [inquiriesError, setInquiriesError] = useState("");
+  const [inquiriesLoading, setInquiriesLoading] = useState(true);
+  const [selectedInquiry, setSelectedInquiry] = useState(null);
+  const [inquiryReplyDraft, setInquiryReplyDraft] = useState("");
+  const [inquiryReplySubmitting, setInquiryReplySubmitting] = useState(false);
   const [usersList, setUsersList] = useState([]);
   const [articlesList, setArticlesList] = useState([]);
+  const [articleCategoryFilter, setArticleCategoryFilter] = useState("all");
+  const [storyModerationNotes, setStoryModerationNotes] = useState({});
   const [reviewsList, setReviewsList] = useState([]);
   const [articleModalOpen, setArticleModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState(null);
@@ -112,9 +121,10 @@ export function AdminPage() {
     content: "",
     coverImage: "",
     author: "",
-    category: "Field Notes",
+    category: "Behind the Adventure",
     readTime: "6 min read",
     publicationStatus: "Draft",
+    isFeatured: false,
   });
   const [guidesList, setGuidesList] = useState([]);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
@@ -175,6 +185,7 @@ export function AdminPage() {
     featured: false,
     published: true,
     image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
+    mapImageUrl: "",
     description: "Follow the historic stone footsteps into the inner sanctum of the world's tallest peaks.",
     introduction: "Guided by local mountain-born Sherpas.",
     highlights: "Kala Patthar panoramic sunrise\nTengboche Monastery blessing\nNamche Bazaar Sherpa capital",
@@ -447,6 +458,21 @@ export function AdminPage() {
           setContactMessagesLoading(false);
         });
 
+      setInquiriesLoading(true);
+      api.inquiries
+        .getAdminAll()
+        .then((res) => {
+          if (!res.success || !Array.isArray(res.inquiries)) throw new Error("The inquiry response was invalid.");
+          setInquiriesList(res.inquiries);
+          setInquiriesError("");
+          setInquiriesLoading(false);
+        })
+        .catch((error) => {
+          setInquiriesList([]);
+          setInquiriesError(error.message || "Unable to load trek inquiries.");
+          setInquiriesLoading(false);
+        });
+
       // 7. Users
       api.admin
         .getUsers()
@@ -500,6 +526,49 @@ export function AdminPage() {
     navigate(`/admin/${tabKey}`);
   };
 
+  const handleOpenInquiry = (inquiry) => {
+    setSelectedInquiry(inquiry);
+    setInquiryReplyDraft("");
+  };
+
+  const handleInquiryStatusChange = async (inquiry, status) => {
+    try {
+      const response = await api.inquiries.updateStatus(inquiry._id, status);
+      setInquiriesList((items) => items.map((item) => item._id === inquiry._id ? response.inquiry : item));
+      setSelectedInquiry(response.inquiry);
+      notify("Inquiry status updated.");
+    } catch (error) {
+      notify(error.message || "Unable to update inquiry status.");
+    }
+  };
+
+  const handleInquiryReply = async (event) => {
+    event.preventDefault();
+    if (!selectedInquiry || !inquiryReplyDraft.trim()) return;
+    setInquiryReplySubmitting(true);
+    try {
+      const response = await api.inquiries.reply(selectedInquiry._id, inquiryReplyDraft);
+      setInquiriesList((items) => items.map((item) => item._id === selectedInquiry._id ? response.inquiry : item));
+      setSelectedInquiry(response.inquiry);
+      setInquiryReplyDraft("");
+      notify("Reply sent to the traveler by email.");
+    } catch (error) {
+      if (error.status === 502) {
+        try {
+          const refreshed = await api.inquiries.getAdminAll();
+          const updated = refreshed.inquiries.find((item) => item._id === selectedInquiry._id);
+          if (updated) {
+            setInquiriesList(refreshed.inquiries);
+            setSelectedInquiry(updated);
+          }
+        } catch (_refreshError) { }
+      }
+      notify(error.message || "The reply could not be emailed. Check the SMTP setup and try again.");
+    } finally {
+      setInquiryReplySubmitting(false);
+    }
+  };
+
   // ── TREK ACTIONS ──
   const handleOpenAddTrek = () => {
     setEditingTrek(null);
@@ -515,6 +584,7 @@ export function AdminPage() {
       featured: false,
       published: true,
       image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
+      mapImageUrl: "",
       description: "Follow the historic stone footsteps into the inner sanctum of the world's tallest peaks.",
       introduction: "Guided by local mountain-born Sherpas.",
       highlights: "Kala Patthar panoramic sunrise\nTengboche Monastery blessing\nNamche Bazaar Sherpa capital",
@@ -557,6 +627,7 @@ export function AdminPage() {
       featured: Boolean(t.featured),
       published: t.published !== undefined ? Boolean(t.published) : true,
       image: t.image || t.images?.[0] || "",
+      mapImageUrl: t.mapImageUrl || "",
       description: t.shortDescription || t.description || "",
       introduction: t.fullDescription || t.introduction || "",
       highlights: Array.isArray(t.highlights) ? t.highlights.join("\n") : (t.highlights || ""),
@@ -628,10 +699,15 @@ export function AdminPage() {
         .filter((line) => line.trim().length > 0)
         .map((line, idx) => {
           const parts = line.split("|").map((p) => p.trim());
+          const elevationText = parts[1] || "";
+          const elevationValue = elevationText.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+          const elevation = elevationValue
+            ? Number(elevationValue[0]) * (/\bkm\b/i.test(elevationText) ? 1000 : 1)
+            : undefined;
           return {
-            day: String(idx + 1).padStart(2, "0"),
+            day: idx + 1,
             title: parts[0] || `Day ${idx + 1}`,
-            elevation: parts[1] || "",
+            ...(elevation !== undefined ? { elevation } : {}),
             details: parts[2] || parts[0] || "",
           };
         })
@@ -649,6 +725,7 @@ export function AdminPage() {
       featured: Boolean(trekForm.featured),
       published: Boolean(trekForm.published),
       images: [trekForm.image, ...galleryArr.map((photo) => photo.url)].filter(Boolean),
+      mapImageUrl: trekForm.mapImageUrl.trim(),
       gallery: galleryArr,
       minGroupSize: Number(trekForm.minGroupSize) || 1,
       groupCapacity: Number(trekForm.groupCapacity) || 12,
@@ -657,7 +734,7 @@ export function AdminPage() {
       meals: trekForm.meals.trim(),
       tripType: trekForm.tripType.trim(),
       shortDescription: trekForm.description,
-      fullDescription: trekForm.introduction,
+      fullDescription: trekForm.introduction.trim() || trekForm.description.trim(),
       highlights: highlightsArr,
       inclusions: includedArr,
       exclusions: excludedArr,
@@ -673,8 +750,9 @@ export function AdminPage() {
         await api.treks.create(payload);
       }
       notify(editingTrek ? `Updated: ${trekForm.title}` : `Created: ${trekForm.title}`);
-    } catch (_err) {
-      notify("Trek saved locally & updated on live frontend.");
+    } catch (error) {
+      notify(error.message || "Could not save trek. Check the form and try again.");
+      return;
     }
 
     // Always update local dataStore and broadcast to frontend
@@ -1269,14 +1347,22 @@ export function AdminPage() {
       content: "",
       coverImage: "",
       author: user?.name || "",
-      category: "Field Notes",
+      category: "Behind the Adventure",
       readTime: "6 min read",
       publicationStatus: "Draft",
+      isFeatured: false,
     });
     setArticleModalOpen(true);
   };
 
   const handleOpenEditArticle = (article) => {
+    const legacyCategories = {
+      "Trekker Stories": "Behind the Adventure",
+      "Field Notes": "Nature & Exploration",
+      "Gear & Packing": "Behind the Adventure",
+      "Sherpa Heritage": "Himalayan Culture & Life",
+      "Teahouse & Sherpa Culture": "Himalayan Culture & Life",
+    };
     setEditingArticle(article);
     setArticleForm({
       title: article.title || "",
@@ -1285,9 +1371,14 @@ export function AdminPage() {
       content: article.content || "",
       coverImage: article.coverImage || article.image || "",
       author: typeof article.author === "string" ? article.author : article.author?.name || "",
-      category: article.category || "Field Notes",
+      category: article.type === "story"
+        ? "Trekker Stories"
+        : ["Himalayan Culture & Life", "Behind the Adventure", "Nature & Exploration"].includes(article.category)
+          ? article.category
+          : legacyCategories[article.category] || "Behind the Adventure",
       readTime: article.readTime || article.read || "6 min read",
-      publicationStatus: article.publicationStatus || "Draft",
+      publicationStatus: article.publicationStatus === "Archived" ? "Unpublished" : article.publicationStatus || "Draft",
+      isFeatured: Boolean(article.isFeatured),
     });
     setArticleModalOpen(true);
   };
@@ -1296,7 +1387,21 @@ export function AdminPage() {
     e.preventDefault();
     const slug = articleForm.slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
       || articleForm.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const payload = { ...articleForm, slug };
+    const payload = {
+      ...articleForm,
+      slug,
+      type: editingArticle?.type || "guide",
+      status: editingArticle?.type === "story"
+        ? editingArticle.status
+        : articleForm.publicationStatus === "Published" ? "published" : articleForm.publicationStatus === "Unpublished" ? "unpublished" : "draft",
+      isFeatured: Boolean(articleForm.isFeatured),
+      author: {
+        name: articleForm.author || user?.name || "Agaaman Editorial",
+        role: editingArticle?.author?.role || "Agaaman Travel Guide",
+        avatarUrl: editingArticle?.author?.avatarUrl || user?.avatar || "",
+        isVerifiedTrekker: Boolean(editingArticle?.author?.isVerifiedTrekker),
+      },
+    };
     try {
       if (editingArticle?._id) {
         await api.articles.update(editingArticle._id, payload);
@@ -1316,6 +1421,23 @@ export function AdminPage() {
       if (response.success) setArticlesList(response.articles || []);
     } catch (err) {
       notify(`Article saved, but the list could not be refreshed: ${err.message}`);
+    }
+  };
+
+  const handleModerateStory = async (story, decision) => {
+    if (["request_corrections", "reject"].includes(decision) && !storyModerationNotes[story._id]?.trim()) {
+      notify("Add feedback for the traveler before returning this experience.");
+      return;
+    }
+    try {
+      const response = await api.articles.moderateStory(story._id, {
+        decision,
+        note: storyModerationNotes[story._id] || "",
+      });
+      setArticlesList((current) => current.map((item) => item._id === story._id ? response.article : item));
+      notify(response.message || (decision === "approve" ? "Trek story published." : "Trek story returned for revision."));
+    } catch (error) {
+      notify(error.message || "Unable to moderate trek story.");
     }
   };
 
@@ -1686,6 +1808,20 @@ export function AdminPage() {
             </div>
             <span className={`adm-badge-count${contactMessagesList.some((message) => message.status === "New") ? " has-pending" : ""}`}>
               {contactMessagesList.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`adm-nav-item${activeTab === "inquiries" ? " is-active" : ""}`}
+            onClick={() => handleSelectTab("inquiries")}
+          >
+            <div className="adm-nav-item-left">
+              <MessageSquare size={18} />
+              <span>Trek Inquiries</span>
+            </div>
+            <span className={`adm-badge-count${inquiriesList.some((inquiry) => inquiry.status === "New") ? " has-pending" : ""}`}>
+              {inquiriesList.length}
             </span>
           </button>
 
@@ -2890,6 +3026,110 @@ export function AdminPage() {
           {/* ════════════════════════════════════════
               TAB 6: USER ACCOUNTS & PERMISSIONS
              ════════════════════════════════════════ */}
+          {activeTab === "inquiries" && (
+            <div>
+              <div className="adm-pane-header">
+                <div className="adm-pane-title">
+                  <h2>Trek Package Inquiries</h2>
+                  <p>Questions submitted from individual trek pages. Open an inquiry to review the traveler’s message and email a reply.</p>
+                </div>
+                <button type="button" className="adm-btn-ghost" onClick={loadDashboardData}>
+                  <RefreshCw size={15} /> Refresh
+                </button>
+              </div>
+              <div className="adm-card">
+                <div className="adm-table-wrap">
+                  <table className="adm-table">
+                    <thead>
+                      <tr><th>Received</th><th>Traveler</th><th>Trek package</th><th>Travel details</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>
+                      {inquiriesLoading ? (
+                        <tr><td colSpan={6} className="adm-empty-cell">Loading trek inquiries…</td></tr>
+                      ) : inquiriesList.length === 0 ? (
+                        <tr><td colSpan={6} className="adm-empty-cell">{inquiriesError || "No trek inquiries yet."}</td></tr>
+                      ) : inquiriesList.map((inquiry) => (
+                        <tr key={inquiry._id}>
+                          <td>{inquiry.createdAt ? new Date(inquiry.createdAt).toLocaleString() : "—"}</td>
+                          <td>
+                            <div className="adm-item-title-col">
+                              <strong>{inquiry.name}</strong>
+                              <a className="adm-item-submeta" href={`mailto:${inquiry.email}`}>{inquiry.email}</a>
+                              {inquiry.phone && <span className="adm-item-submeta">{inquiry.phone}</span>}
+                            </div>
+                          </td>
+                          <td><Link to={`/treks/${inquiry.trekSlug}`} target="_blank" rel="noreferrer">{inquiry.trekTitle}</Link></td>
+                          <td>
+                            <div className="adm-item-title-col">
+                              <span>{inquiry.travelers} traveler{inquiry.travelers === 1 ? "" : "s"}</span>
+                              {inquiry.travelMonth && <span className="adm-item-submeta">{inquiry.travelMonth}</span>}
+                              {inquiry.country && <span className="adm-item-submeta">{inquiry.country}</span>}
+                            </div>
+                          </td>
+                          <td><span className={`adm-pill ${inquiry.status === "Resolved" ? "green" : inquiry.status === "New" ? "orange" : "blue"}`}>{inquiry.status}</span></td>
+                          <td><button type="button" className="adm-btn-ghost" onClick={() => handleOpenInquiry(inquiry)}><MessageSquare size={14} /> Open / Reply</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {selectedInquiry && (
+                <div className="adm-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedInquiry(null); }}>
+                  <section className="adm-modal-card adm-inquiry-modal" role="dialog" aria-modal="true" aria-labelledby="inquiry-modal-title">
+                    <div className="adm-modal-header">
+                      <div>
+                        <h3 id="inquiry-modal-title">{selectedInquiry.trekTitle} inquiry</h3>
+                        <a className="adm-item-submeta" href={`mailto:${selectedInquiry.email}`}>{selectedInquiry.name} · {selectedInquiry.email}</a>
+                      </div>
+                      <button type="button" className="adm-modal-close-btn" onClick={() => setSelectedInquiry(null)} aria-label="Close inquiry"><X size={20} /></button>
+                    </div>
+                    <div className="adm-modal-form">
+                      <div className="adm-form-row">
+                        <div><strong>Travelers</strong><p>{selectedInquiry.travelers}</p></div>
+                        <div><strong>Travel month</strong><p>{selectedInquiry.travelMonth || "Flexible"}</p></div>
+                        <div><strong>Country</strong><p>{selectedInquiry.country || "Not provided"}</p></div>
+                      </div>
+                      {selectedInquiry.phone && <p><strong>Phone:</strong> {selectedInquiry.phone}</p>}
+                      <div className="adm-inquiry-original-message"><strong>Traveler’s question</strong><p>{selectedInquiry.message}</p></div>
+                      <label className="adm-field">
+                        <span>Inquiry status</span>
+                        <select value={selectedInquiry.status} onChange={(event) => handleInquiryStatusChange(selectedInquiry, event.target.value)}>
+                          <option>New</option><option>In Progress</option><option>Resolved</option>
+                        </select>
+                      </label>
+                      {selectedInquiry.replies?.length > 0 && (
+                        <div className="adm-inquiry-replies">
+                          <strong>Reply history</strong>
+                          {selectedInquiry.replies.map((reply) => (
+                            <article key={reply._id}>
+                              <p>{reply.message}</p>
+                              <small>{reply.sentByName} · {reply.sentAt ? new Date(reply.sentAt).toLocaleString() : "Not sent"} · Email {reply.deliveryStatus.toLowerCase()}</small>
+                              {reply.deliveryStatus === "Failed" && <small className="adm-inquiry-delivery-error">{reply.deliveryError}</small>}
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                      <form onSubmit={handleInquiryReply}>
+                        <label className="adm-field">
+                          <span>Reply by email to {selectedInquiry.email}</span>
+                          <textarea rows={5} maxLength={5000} value={inquiryReplyDraft} onChange={(event) => setInquiryReplyDraft(event.target.value)} placeholder="Write a clear, helpful answer about this trek…" required />
+                        </label>
+                        <div className="adm-modal-footer">
+                          <button type="button" className="adm-btn-ghost" onClick={() => setSelectedInquiry(null)}>Close</button>
+                          <button type="submit" className="adm-btn-primary" disabled={inquiryReplySubmitting || !inquiryReplyDraft.trim()}>
+                            <Mail size={15} /> {inquiryReplySubmitting ? "Sending…" : "Send email reply"}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === "users" && (
             <div>
               <div className="adm-pane-header">
@@ -3050,7 +3290,25 @@ export function AdminPage() {
                     fontWeight: 600,
                   }}
                 >
-                  <FileText size={15} style={{ marginRight: "6px" }} /> Field Articles ({articlesList.length})
+                  <FileText size={15} style={{ marginRight: "6px" }} /> Field Articles ({articlesList.filter((article) => article.type !== "story").length})
+                </button>
+                <button
+                  type="button"
+                  className={`adm-btn-ghost${contentSubTab === "stories" ? " is-active" : ""}`}
+                  onClick={() => setContentSubTab("stories")}
+                  style={{
+                    background: contentSubTab === "stories" ? "#083c34" : "#ffffff",
+                    color: contentSubTab === "stories" ? "#ffffff" : "#475569",
+                    borderColor: contentSubTab === "stories" ? "#083c34" : "#cbd5e1",
+                    fontWeight: 600,
+                  }}
+                >
+                  <BookOpen size={15} style={{ marginRight: "6px" }} /> Trekkers Journal ({articlesList.filter((article) => article.type === "story").length})
+                  {articlesList.filter((article) => article.type === "story" && article.status === "pending_review").length > 0 && (
+                    <span style={{ marginLeft: "6px", background: "#ea580c", color: "#fff", padding: "1px 6px", borderRadius: "10px", fontSize: "11px" }}>
+                      {articlesList.filter((article) => article.type === "story" && article.status === "pending_review").length} pending
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -3072,8 +3330,69 @@ export function AdminPage() {
                 </button>
               </div>
 
-              {contentSubTab === "articles" ? (
+              {contentSubTab === "stories" ? (
+                <div className="adm-story-moderation-list">
+                  {articlesList.filter((article) => article.type === "story").length === 0 ? (
+                    <div className="adm-card adm-story-empty">No trekker stories have been submitted yet.</div>
+                  ) : articlesList.filter((article) => article.type === "story").map((story) => (
+                    <article className="adm-card adm-story-review-card" key={story._id}>
+                      <div className="adm-story-cover">
+                        <img src={story.coverImage} alt={story.title} />
+                      </div>
+                      <div className="adm-story-review-main">
+                        <div className="adm-story-review-heading">
+                          <div>
+                            <span className={`adm-pill ${story.status === "pending_review" ? "orange" : story.status === "published" ? "green" : "blue"}`}>{story.status === "pending_review" ? "Pending" : story.status === "published" ? "Published" : story.status === "rejected" ? "Rejected" : story.status}</span>
+                            <h3>{story.title}</h3>
+                            <p>{story.author?.name || story.submittedBy?.name || "Verified Trekker"} · {story.relatedTrek?.title || "Trek route"} · Booking {story.completedBooking?.bookingReference || "—"} · Submitted {story.createdAt ? new Date(story.createdAt).toLocaleDateString() : "—"}</p>
+                          </div>
+                          {story.author?.isVerifiedTrekker && <span className="adm-pill green">Verified Trekker</span>}
+                        </div>
+                        <p className="adm-story-excerpt" style={{ whiteSpace: "pre-wrap" }}>{story.content}</p>
+                        {story.moderationNote && <p className="adm-story-excerpt"><strong>Editorial note:</strong> {story.moderationNote}</p>}
+                        {(story.photos?.length > 0 || story.coverImage) && (
+                          <div className="adm-story-photo-gallery">
+                            {(story.photos?.length ? story.photos : [story.coverImage]).map((photo, index) => <a href={photo} target="_blank" rel="noreferrer" key={`${photo}-${index}`}><img src={photo} alt={`${story.title} photograph ${index + 1}`} /></a>)}
+                          </div>
+                        )}
+                        {story.videoUrl?.startsWith("/api/uploads/stories/") && <video className="adm-story-video" controls src={story.videoUrl} />}
+                        {story.videoUrl?.startsWith("http") && <p className="adm-story-social-links"><a href={story.videoUrl} target="_blank" rel="noreferrer">Open attached video</a></p>}
+                        {(story.instagramUrl || story.facebookUrl) && <div className="adm-story-social-links">{story.instagramUrl && <a href={story.instagramUrl} target="_blank" rel="noreferrer">Instagram post</a>}{story.facebookUrl && <a href={story.facebookUrl} target="_blank" rel="noreferrer">Facebook post</a>}</div>}
+                        {story.status === "pending_review" && (
+                          <label className="adm-story-note-field">
+                            Feedback for the trekker if changes are needed
+                            <textarea rows={2} value={storyModerationNotes[story._id] || ""} onChange={(event) => setStoryModerationNotes((current) => ({ ...current, [story._id]: event.target.value }))} maxLength={1000} />
+                          </label>
+                        )}
+                        {story.status === "rejected" && story.moderationNote && <p className="adm-story-excerpt"><strong>Feedback sent:</strong> {story.moderationNote}</p>}
+                        <div className="adm-story-review-actions">
+                          {story.status === "pending_review" ? (
+                            <>
+                              <button type="button" className="adm-btn-primary" onClick={() => handleModerateStory(story, "approve")}><Check size={15} /> Approve & Publish</button>
+                              <button type="button" className="adm-btn-ghost" onClick={() => handleModerateStory(story, "request_corrections")}><MessageSquare size={15} /> Request corrections</button>
+                              <button type="button" className="adm-btn-ghost" onClick={() => handleModerateStory(story, "reject")}><X size={15} /> Reject</button>
+                            </>
+                          ) : story.status === "published" ? (
+                            <Link className="adm-btn-ghost" to={`/journal/${story.slug}`} target="_blank"><Eye size={15} /> View published story</Link>
+                          ) : <span className="adm-item-submeta">Returned to the traveler for revision</span>}
+                          <button type="button" className="adm-btn-ghost" onClick={() => handleOpenEditArticle(story)}><Edit size={15} /> Edit experience</button>
+                          {story.completedBooking && story.blocksDuplicateSubmission !== false && <button type="button" className="adm-btn-ghost" onClick={() => handleModerateStory(story, "allow_another")}><Plus size={15} /> Allow another for this booking</button>}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : contentSubTab === "articles" ? (
                 <div className="adm-card">
+                  <div className="adm-table-toolbar">
+                    <label className="adm-field" style={{ maxWidth: "320px", margin: 0 }}>
+                      <span>Filter Field Articles</span>
+                      <select value={articleCategoryFilter} onChange={(event) => setArticleCategoryFilter(event.target.value)}>
+                        <option value="all">All categories</option>
+                        {["Himalayan Culture & Life", "Behind the Adventure", "Nature & Exploration"].map((category) => <option key={category} value={category}>{category}</option>)}
+                      </select>
+                    </label>
+                  </div>
                   <div className="adm-table-wrap">
                     <table className="adm-table">
                       <thead>
@@ -3087,7 +3406,7 @@ export function AdminPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {articlesList.map((art) => (
+                        {articlesList.filter((article) => article.type !== "story" && (articleCategoryFilter === "all" || article.category === articleCategoryFilter)).map((art) => (
                           <tr key={art._id || art.slug}>
                             <td>
                               <div className="adm-thumbnail-wrap" style={{ width: "64px", height: "42px" }}>
@@ -3095,21 +3414,21 @@ export function AdminPage() {
                               </div>
                             </td>
                             <td>
-                              {art.publicationStatus === "Published" ? (
+                              {(art.publicationStatus === "Published" || art.status === "published") ? (
                                 <Link to={`/journal/${art.slug}`} target="_blank" className="adm-item-title-link">
                                   {art.title}
                                 </Link>
                               ) : (
                                 <strong>{art.title}</strong>
                               )}
-                              <span className="adm-item-submeta">{art.publicationStatus || "Draft"}</span>
+                              <span className="adm-item-submeta">{art.isFeatured ? "Featured · " : ""}{art.publicationStatus || (art.status === "unpublished" ? "Unpublished" : art.status === "published" ? "Published" : "Draft")}</span>
                             </td>
                             <td><span className="adm-pill blue">{art.category}</span></td>
                             <td>{typeof art.author === "string" ? art.author : art.author?.name || "Editorial Team"}</td>
                             <td>{art.readTime || "6 min read"}</td>
                             <td>
                               <div className="adm-actions-row">
-                                {art.publicationStatus === "Published" && (
+                                {(art.publicationStatus === "Published" || art.status === "published") && (
                                   <Link to={`/journal/${art.slug}`} target="_blank" className="adm-icon-btn" title="View Article">
                                     <Eye size={15} />
                                   </Link>
@@ -3679,6 +3998,18 @@ export function AdminPage() {
               </div>
 
               <div className="adm-field">
+                <label>Illustrated Route Map URL</label>
+                <input
+                  type="url"
+                  value={trekForm.mapImageUrl}
+                  onChange={(e) => setTrekForm({ ...trekForm, mapImageUrl: e.target.value })}
+                  placeholder="Generated route map URL will appear here"
+                />
+                <span className="adm-field-hint">Displayed in the public Route Map tab. Keep the generated map URL unless replacing it with a verified route illustration.</span>
+                {trekForm.mapImageUrl && <img className="adm-route-map-preview" src={trekForm.mapImageUrl} alt="Illustrated trek route map preview" />}
+              </div>
+
+              <div className="adm-field">
               <label>Photo Gallery</label>
               <input
                 type="file"
@@ -4221,8 +4552,10 @@ export function AdminPage() {
               </div>
               <div className="adm-form-row">
                 <div className="adm-field">
-                  <label>Category</label>
-                  <input value={articleForm.category} onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value })} />
+                  <label>Journal Category</label>
+                  <select value={articleForm.category} onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value })}>
+                    {(editingArticle?.type === "story" ? ["Trekker Stories"] : ["Himalayan Culture & Life", "Behind the Adventure", "Nature & Exploration"]).map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
                 </div>
                 <div className="adm-field">
                   <label>Author</label>
@@ -4237,10 +4570,14 @@ export function AdminPage() {
                 <div className="adm-field">
                   <label>Publication Status</label>
                   <select value={articleForm.publicationStatus} onChange={(e) => setArticleForm({ ...articleForm, publicationStatus: e.target.value })}>
-                    {["Draft", "Published", "Archived"].map((status) => <option key={status} value={status}>{status}</option>)}
+                    {["Draft", "Published", "Unpublished"].map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </div>
               </div>
+              <label className="adm-inline-check">
+                <input type="checkbox" checked={Boolean(articleForm.isFeatured)} onChange={(event) => setArticleForm({ ...articleForm, isFeatured: event.target.checked })} />
+                Feature this article on the Journal page
+              </label>
               <div className="adm-field">
                 <label>Cover Photo URL *</label>
                 <input type="url" value={articleForm.coverImage} onChange={(e) => setArticleForm({ ...articleForm, coverImage: e.target.value })} required />

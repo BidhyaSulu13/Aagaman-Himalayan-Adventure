@@ -8,6 +8,7 @@ import {
   moderateReview,
   createVerifiedReview,
   getReviewVerification,
+  verifyCompletedTrekBooking,
   requestReviewVerification,
 } from "../controllers/reviewController.js";
 import { protect, requireAdmin } from "../middleware/auth.js";
@@ -33,6 +34,7 @@ const verificationRequestLimit = rateLimit({
 router.get("/approved", getApprovedReviews);
 router.get("/trek/:trekId", getTrekReviews);
 router.post("/request-verification", verificationRequestLimit, requestReviewVerification);
+router.post("/verify-booking", verificationRequestLimit, verifyCompletedTrekBooking);
 router.get("/verify/:token", getReviewVerification);
 router.post("/verified", reviewSubmissionLimit, uploadReviewPhotos, createVerifiedReview);
 router.post("/", reviewSubmissionLimit, protect, uploadReviewPhotos, createReview);

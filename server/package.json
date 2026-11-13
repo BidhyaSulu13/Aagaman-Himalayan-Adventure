@@ -13,9 +13,14 @@
     "seed": "node src/seed.js",
     "catalog:add-destinations": "node scripts/addDestinationsAndRegions.js",
     "catalog:extend-trails": "node scripts/extendTrailCatalog.js",
+    "treks:generate-route-maps": "node scripts/generateTrekRouteMaps.js",
+    "departures:create-two-per-trek": "node scripts/createTwoDeparturesPerTrek.js",
     "departures:sync-end-dates": "node scripts/syncDepartureEndDates.js",
     "email:verify": "node scripts/verifyEmail.js",
-    "admin:create": "node scripts/provisionAdmin.js"
+    "admin:create": "node scripts/provisionAdmin.js",
+    "journal:migrate-categories": "node scripts/migrateJournalCategories.js",
+    "journal:seed-field-articles": "node scripts/seedFieldArticles.js",
+    "journal:import-reviewed-experiences": "node scripts/importReviewedTrekExperiences.js"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",

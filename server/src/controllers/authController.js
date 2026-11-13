@@ -298,7 +298,7 @@ async function authenticate(req, res, next, requiredRole) {
 
 // POST /api/auth/login
 export function login(req, res, next) {
-  return authenticate(req, res, next);
+  return authenticate(req, res, next, "traveler");
 }
 
 // POST /api/auth/admin/login

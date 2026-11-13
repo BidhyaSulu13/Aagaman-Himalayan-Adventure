@@ -312,11 +312,16 @@
 .booking-calc-sticky {
   position: sticky;
   top: 90px;
+  align-self: start;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
+  animation: booking-sidebar-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .calc-header {
@@ -442,6 +447,14 @@
 .calc-trust-item svg {
   color: #10b981;
   flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .booking-calc-sticky {
+    max-height: none;
+    overflow: visible;
+    animation: none;
+  }
 }
 
 /* ── CONFIRMATION RECEIPT CARD ── */

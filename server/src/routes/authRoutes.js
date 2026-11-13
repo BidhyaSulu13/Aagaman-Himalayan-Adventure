@@ -39,12 +39,24 @@ const loginLinkLimit = rateLimit({
   message: { success: false, message: "Too many sign-in link requests. Please try again later." },
 });
 
-router.post("/register", loginAndRegistrationLimit, register);
-router.post("/login", loginAndRegistrationLimit, login);
-router.post("/admin/login", loginAndRegistrationLimit, adminLogin);
-router.post("/google", loginAndRegistrationLimit, googleLogin);
-router.post("/request-login-link", loginLinkLimit, requestLoginLink);
-router.post("/verify-login-link", loginLinkLimit, verifyLoginLink);
+function keepCurrentRole(expectedRole) {
+  return (req, res, next) => {
+    if (req.user && req.user.role !== expectedRole) {
+      return res.status(409).json({
+        success: false,
+        message: `Log out of your ${req.user.role} account before signing in as a ${expectedRole}.`,
+      });
+    }
+    next();
+  };
+}
+
+router.post("/register", optionalAuth, keepCurrentRole("traveler"), loginAndRegistrationLimit, register);
+router.post("/login", optionalAuth, keepCurrentRole("traveler"), loginAndRegistrationLimit, login);
+router.post("/admin/login", optionalAuth, keepCurrentRole("admin"), loginAndRegistrationLimit, adminLogin);
+router.post("/google", optionalAuth, keepCurrentRole("traveler"), loginAndRegistrationLimit, googleLogin);
+router.post("/request-login-link", optionalAuth, keepCurrentRole("traveler"), loginLinkLimit, requestLoginLink);
+router.post("/verify-login-link", optionalAuth, keepCurrentRole("traveler"), loginLinkLimit, verifyLoginLink);
 router.post("/logout", logout);
 router.get("/me", optionalAuth, getMe);
 router.put("/profile", protect, updateProfile);

@@ -12,13 +12,11 @@ import {
   Flame,
   Heart,
   HeartHandshake,
-  Lock,
   MapPin,
   Menu,
   Mountain,
   Package,
   Search,
-  ShieldCheck,
   Sparkles,
   Star,
   Sun,
@@ -73,6 +71,7 @@ function travelerFirstName(user) {
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null); // 'treks' | 'guide' | 'destinations' | null
   const [activeRegionId, setActiveRegionId] = useState(null);
   const [mobileExpanded, setMobileExpanded] = useState({ treks: false, guide: false, destinations: false });
@@ -84,6 +83,7 @@ export function Header() {
   const { user } = useAuth();
   const reduceMotion = useReducedMotion();
   const navRef = useRef(null);
+  const searchInputRef = useRef(null);
   const closeTimeoutRef = useRef(null);
 
   const treks = useTreks();
@@ -117,7 +117,12 @@ export function Header() {
   useEffect(() => {
     setMenuOpen(false);
     setOpenDropdown(null);
+    setSearchOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   // Sync search query param
   useEffect(() => {
@@ -137,6 +142,7 @@ export function Header() {
     const handleClickOutside = (e) => {
       if (navRef.current && !navRef.current.contains(e.target)) {
         setOpenDropdown(null);
+        setSearchOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -173,12 +179,16 @@ export function Header() {
   );
 
   return (
-    <header className={`site-header spade-header${scrolled ? " is-scrolled" : ""}`}>
+    <header className={`site-header spade-header${scrolled ? " is-scrolled" : ""}${searchOpen ? " is-search-open" : ""}`}>
       <div className="header-inner" ref={navRef}>
         {/* Brand */}
         <Link className="brand" to="/" aria-label="Agaaman: A Himalayan Adventure">
           <div className="brand-logo-mark">
-            <Mountain size={24} strokeWidth={2} />
+            <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+              <circle cx="23" cy="8" r="3.2" />
+              <path d="M2.5 25.5 11.2 11l5.1 8.2 3.1-4.6 10.1 10.9H2.5Z" />
+              <path d="m8.4 15.7 2.8-1.5 2.1 3.3M17.8 19l1.5-2.1 2.5 2.7" />
+            </svg>
           </div>
           <span className="brand-name">
             <span className="brand-title">Agaaman</span>
@@ -639,16 +649,6 @@ export function Header() {
             Contact Us
           </NavLink>
 
-          {/* Mobile Extra Links */}
-          {user && user.role === "admin" ? (
-            <Link className="mobile-extra-link" to="/admin/dashboard" style={{ color: "#ea580c", fontWeight: 700 }}>
-              ⚡ Admin Dashboard ({user.name})
-            </Link>
-          ) : !user ? (
-            <Link className="mobile-extra-link" to="/admin/login" style={{ color: "#ea580c", fontWeight: 600 }}>
-              🔒 Admin Login
-            </Link>
-          ) : null}
           <div className="mobile-actions">
             {user && user.role === "traveler" ? (
               <Link to="/dashboard" className="button button-outline button-full">{travelerFirstName(user)}'s Dashboard</Link>
@@ -664,45 +664,45 @@ export function Header() {
         {/* Header Right Actions */}
         <div className="header-actions spade-actions">
           {/* Search Trigger */}
-          <form
-            className="header-search-form"
-            role="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const q = search.trim();
-              navigate(q ? `/treks?search=${encodeURIComponent(q)}` : "/treks");
-            }}
-          >
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search treks..."
-              aria-label="Search treks"
-            />
-            <button type="submit" aria-label="Submit search">
-              <Search size={18} />
+          <div className="header-search-wrap">
+            <button
+              className="header-search-toggle"
+              type="button"
+              aria-label={searchOpen ? "Close trek search" : "Search treks"}
+              aria-expanded={searchOpen}
+              onClick={() => setSearchOpen((open) => !open)}
+            >
+              <Search size={19} />
             </button>
-          </form>
+            {searchOpen && (
+              <form
+                className="header-search-form is-open"
+                role="search"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = search.trim();
+                  navigate(q ? `/treks?search=${encodeURIComponent(q)}` : "/treks");
+                  setSearchOpen(false);
+                }}
+              >
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search treks..."
+                  aria-label="Search treks"
+                />
+                <button type="submit" aria-label="Submit search"><Search size={18} /></button>
+              </form>
+            )}
+          </div>
 
           {/* Saved Link */}
           <Link className="saved-link" to="/saved" aria-label={`Saved, ${savedTreks.length} treks`}>
             <Heart size={20} />
             {savedTreks.length > 0 && <span className="saved-count">{savedTreks.length}</span>}
           </Link>
-
-          {/* Dedicated Admin Login / Console Link */}
-          {user && user.role === "admin" ? (
-            <Link to="/admin/dashboard" className="admin-portal-link is-admin-badge" title="Open Admin Console">
-              <ShieldCheck size={16} />
-              <span>Admin Console</span>
-            </Link>
-          ) : !user ? (
-            <Link to="/admin/login" className="admin-portal-link is-admin-badge" title="Sign In to Admin Console">
-              <Lock size={15} />
-              <span>Admin Login</span>
-            </Link>
-          ) : null}
 
           {user && user.role === "traveler" ? (
             <Link to="/dashboard" className="traveler-login-link" title={user.email || "Open traveler dashboard"}>

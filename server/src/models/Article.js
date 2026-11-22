@@ -58,7 +58,6 @@ const articleSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Booking",
       default: null,
-      index: true,
     },
     blocksDuplicateSubmission: {
       type: Boolean,

@@ -1,4 +1,6 @@
-const configuredApiBase = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+const configuredApiBase = String(
+  import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ""
+).trim();
 const API_ORIGIN = configuredApiBase
   ? (/^https?:\/\//i.test(configuredApiBase) ? configuredApiBase : `https://${configuredApiBase}`)
       .replace(/\/api\/?$/i, "")

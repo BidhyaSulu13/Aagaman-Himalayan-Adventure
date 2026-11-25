@@ -38,8 +38,12 @@ if (process.env.NODE_ENV === "production") {
 app.use(helmet());
 
 // CORS configuration supporting credentials (HttpOnly cookies)
+const configuredClientOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 const allowedOrigins = new Set([
-  process.env.CLIENT_URL,
+  ...configuredClientOrigins,
   ...(process.env.NODE_ENV === "production"
     ? []
     : [
@@ -56,7 +60,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin || allowedOrigins.has(origin.replace(/\/+$/, ""))) {
         callback(null, true);
       } else {
         callback(null, false);

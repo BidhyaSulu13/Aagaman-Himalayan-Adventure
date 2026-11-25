@@ -25,7 +25,8 @@ async function provisionAdmin() {
   }
 
   if (existingUser && !resetPassword) {
-    throw new Error("An admin already exists for that email. Use --reset-password to change its password.");
+    console.log("Administrator already exists; no changes made.");
+    return;
   }
 
   const passwordHash = await User.hashPassword(password);

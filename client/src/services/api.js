@@ -1,7 +1,30 @@
-const API_BASE = "/api";
+const configuredApiBase = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+const API_ORIGIN = configuredApiBase
+  ? (/^https?:\/\//i.test(configuredApiBase) ? configuredApiBase : `https://${configuredApiBase}`)
+      .replace(/\/api\/?$/i, "")
+      .replace(/\/+$/, "")
+  : "";
+const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : "/api";
+
+export function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("/api/")) return `${API_ORIGIN}${path}`;
+  return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function normalizeApiMedia(value) {
+  if (typeof value === "string") {
+    return API_ORIGIN && value.startsWith("/api/uploads/") ? `${API_ORIGIN}${value}` : value;
+  }
+  if (Array.isArray(value)) return value.map(normalizeApiMedia);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeApiMedia(item)]));
+  }
+  return value;
+}
 
 async function request(endpoint, options = {}, { quietStatuses = [] } = {}) {
-  const url = `${API_BASE}${endpoint}`;
+  const url = apiUrl(endpoint);
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers = {
     ...(!isFormData ? { "Content-Type": "application/json" } : {}),
@@ -28,7 +51,7 @@ async function request(endpoint, options = {}, { quietStatuses = [] } = {}) {
       throw error;
     }
 
-    return data;
+    return normalizeApiMedia(data);
   } catch (error) {
     if (!quietStatuses.includes(error.status)) {
       console.error(`API Error on [${options.method || "GET"} ${endpoint}]:`, error.message);

@@ -3355,7 +3355,7 @@ export function AdminPage() {
                             {(story.photos?.length ? story.photos : [story.coverImage]).map((photo, index) => <a href={photo} target="_blank" rel="noreferrer" key={`${photo}-${index}`}><img src={photo} alt={`${story.title} photograph ${index + 1}`} /></a>)}
                           </div>
                         )}
-                        {story.videoUrl?.startsWith("/api/uploads/stories/") && <video className="adm-story-video" controls src={story.videoUrl} />}
+                        {/\/api\/uploads\/stories\//.test(story.videoUrl || "") && <video className="adm-story-video" controls src={story.videoUrl} />}
                         {story.videoUrl?.startsWith("http") && <p className="adm-story-social-links"><a href={story.videoUrl} target="_blank" rel="noreferrer">Open attached video</a></p>}
                         {(story.instagramUrl || story.facebookUrl) && <div className="adm-story-social-links">{story.instagramUrl && <a href={story.instagramUrl} target="_blank" rel="noreferrer">Instagram post</a>}{story.facebookUrl && <a href={story.facebookUrl} target="_blank" rel="noreferrer">Facebook post</a>}</div>}
                         {story.status === "pending_review" && (

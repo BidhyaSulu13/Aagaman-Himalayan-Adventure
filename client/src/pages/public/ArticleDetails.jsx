@@ -68,7 +68,7 @@ export function ArticlePage() {
           <p className="article-lede">{article.summary}</p>
           <div className="article-meta-line"><span><Clock3 size={15} /> {articleReadTime}</span><span>{article.category}</span></div>
           <div className="article-image"><Image src={article.coverImage || article.image} alt={article.title} /></div>
-          {article.type === "story" && article.videoUrl?.startsWith("/api/uploads/stories/") && <video className="article-story-video" controls preload="metadata" src={article.videoUrl} />}
+          {article.type === "story" && /\/api\/uploads\/stories\//.test(article.videoUrl || "") && <video className="article-story-video" controls preload="metadata" src={article.videoUrl} />}
           {article.type === "story" && article.videoUrl?.startsWith("http") && <div className="article-story-links"><a href={article.videoUrl} target="_blank" rel="noreferrer">Watch the attached video</a></div>}
           {article.type === "story" && (article.instagramUrl || article.facebookUrl) && (
             <div className="article-story-links">

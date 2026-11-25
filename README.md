@@ -145,11 +145,26 @@ Public catalog and content routes read from the API, with illustrative frontend 
 
 External images are loaded from Unsplash image URLs and map tiles from OpenStreetMap. Confirm image licensing and any required attribution before public use.
 
+## Deploying to Render
+
+The repository includes a Render Blueprint at `render.yaml`. Connect the repository to Render and create a Blueprint from that file. It creates a Node API web service and a React static site. The static site gets the API host from the Blueprint, and client-side routes rewrite to `index.html`.
+
+During the first Blueprint setup, provide these values without committing them to the repository:
+
+- `MONGODB_URI`: a production MongoDB connection string. Allow the Render API service to connect in the database provider's network settings.
+- `ADMIN_EMAIL` and `ADMIN_PASSWORD`: the first administrator account. Use a unique password with at least 16 characters. The API's first deploy provisions this account without changing it on later deploys.
+- `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM`: a Gmail sender and App Password for production email. Configure Gmail OAuth instead if preferred, using the OAuth variable names in `server/.env.example`.
+- `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`: the same Google OAuth web client ID. These are needed only for Google sign-in; add the deployed static-site origin to its authorized JavaScript origins.
+
+The Blueprint automatically supplies each service's public Render URL to the other: the browser uses the API's HTTPS URL, and API CORS uses the website's HTTPS origin. If you add a custom domain, update `CLIENT_URL` on the API to the exact website origin. Render generates `JWT_SECRET` and `COOKIE_SECRET`. The API blueprint uses a paid web service with a 1 GB persistent disk mounted at its upload directory, so uploaded trek, review, and story media survive restarts and deploys. A disk-backed API runs as one instance and has a short interruption during deploys. Do not remove the disk unless uploaded media has been migrated elsewhere.
+
+Do not run `npm run seed` against production: the seed script clears application collections. The `client/` production build succeeds locally; it reports a large main JavaScript chunk that can be optimized later.
+
 ## Database seeding
 
 The seed script clears existing application collections. It refuses to run unless explicitly confirmed with `npm run seed -- --reset` from `server/`, and requires `SEED_ADMIN_PASSWORD` and `SEED_TRAVELER_PASSWORD` in `server/.env` (each at least 12 characters). Do not run it against a database containing data you need to keep.
 
-There is no automated test suite configured yet. Validate changes with `npm run build` in `client/` and syntax checks or API smoke tests in `server/`. No deployment has been configured, so there is no public website URL yet. After deploying the frontend and API, use the frontend URL provided by the hosting platform.
+There is no automated test suite configured yet. Validate changes with `npm run build` in `client/` and syntax checks or API smoke tests in `server/`. The Render Blueprint still requires a connected Git repository, production MongoDB access, and the environment values listed above before it can go live.
 
 ## Development roadmap
 

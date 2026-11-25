@@ -2,6 +2,7 @@ import { treks as initialTreks } from "../data/demoTreks.js";
 import { articles as initialArticles } from "../data/demoArticles.js";
 import { destinations as initialDestinations } from "../data/demoDestinations.js";
 import { regions as initialRegions } from "../data/demoRegions.js";
+import { apiUrl, normalizeApiMedia } from "./api.js";
 
 const TREKS_STORAGE_KEY = "agaaman_treks_data_v2";
 const ARTICLES_STORAGE_KEY = "agaaman_articles_data_v2";
@@ -186,9 +187,9 @@ async function syncFromBackend() {
   if (typeof window === "undefined") return;
   try {
     // Sync Treks
-    const treksRes = await fetch("/api/treks?limit=50");
+    const treksRes = await fetch(apiUrl("/treks?limit=50"), { credentials: "include" });
     if (treksRes.ok) {
-      const data = await treksRes.json();
+      const data = normalizeApiMedia(await treksRes.json());
       if (data.success && Array.isArray(data.treks) && data.treks.length > 0) {
         const mapped = data.treks.map((t) => ({
           ...t,
@@ -201,9 +202,9 @@ async function syncFromBackend() {
     }
 
     // Sync Departures
-    const depRes = await fetch("/api/departures");
+    const depRes = await fetch(apiUrl("/departures"), { credentials: "include" });
     if (depRes.ok) {
-      const data = await depRes.json();
+      const data = normalizeApiMedia(await depRes.json());
       if (data.success && Array.isArray(data.departures) && data.departures.length > 0) {
         const mappedDeps = data.departures.map((d) => ({
           id: d._id || d.id,
@@ -222,9 +223,9 @@ async function syncFromBackend() {
     }
 
     // Sync Articles
-    const artRes = await fetch("/api/articles");
+    const artRes = await fetch(apiUrl("/articles"), { credentials: "include" });
     if (artRes.ok) {
-      const data = await artRes.json();
+      const data = normalizeApiMedia(await artRes.json());
       if (data.success && Array.isArray(data.articles) && data.articles.length > 0) {
         const mappedArts = data.articles.map((a) => ({
           ...a,
@@ -236,9 +237,9 @@ async function syncFromBackend() {
     }
 
     // Sync Destinations
-    const destRes = await fetch("/api/destinations");
+    const destRes = await fetch(apiUrl("/destinations"), { credentials: "include" });
     if (destRes.ok) {
-      const data = await destRes.json();
+      const data = normalizeApiMedia(await destRes.json());
       if (data.success && Array.isArray(data.destinations) && data.destinations.length > 0) {
         const mappedDests = data.destinations.map((d) => {
           const matchInitial = initialDestinations.find((init) => init.slug === d.slug);
@@ -305,7 +306,7 @@ export const dataStore = {
     setStored(TREKS_STORAGE_KEY, list);
 
     // Also persist to backend if possible
-    fetch(`/api/treks`, {
+    fetch(apiUrl("/treks"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -454,7 +455,7 @@ export const dataStore = {
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
     // Also persist to backend
-    fetch("/api/destinations", {
+    fetch(apiUrl("/destinations"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -484,7 +485,7 @@ export const dataStore = {
     );
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
-    fetch(`/api/destinations/${idOrSlug}`, {
+    fetch(apiUrl(`/destinations/${encodeURIComponent(idOrSlug)}`), {
       method: "DELETE",
       credentials: "include",
     }).catch(() => {});
@@ -610,7 +611,7 @@ export const dataStore = {
     setStored(REGIONS_STORAGE_KEY, list);
 
     // Also persist to backend
-    fetch("/api/regions", {
+    fetch(apiUrl("/regions"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(item),
@@ -626,7 +627,7 @@ export const dataStore = {
     );
     setStored(REGIONS_STORAGE_KEY, list);
 
-    fetch(`/api/regions/${idOrSlug}`, {
+    fetch(apiUrl(`/regions/${encodeURIComponent(idOrSlug)}`), {
       method: "DELETE",
       credentials: "include",
     }).catch(() => {});

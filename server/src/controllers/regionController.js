@@ -20,46 +20,22 @@ export async function getRegions(_req, res, next) {
 export async function getRegionBySlug(req, res, next) {
   try {
     const { slug } = req.params;
-    const cleanSlug = (slug || "").trim().toLowerCase();
-
-    // Flexible lookup by slug, name, or label alias (e.g., 'everest' -> 'Khumbu' / 'Everest Region')
-    let region = await Region.findOne({
-      $or: [
-        { slug: cleanSlug },
-        { slug: new RegExp(`^${cleanSlug}$`, "i") },
-        { name: new RegExp(`^${cleanSlug}$`, "i") },
-        { label: new RegExp(cleanSlug, "i") },
-      ],
-    });
-
-    if (!region && (cleanSlug.includes("everest") || cleanSlug.includes("khumbu"))) {
-      region = await Region.findOne({
-        $or: [{ slug: "khumbu" }, { name: "Khumbu" }, { label: /Everest/i }],
-      });
-    }
+    const region = await Region.findOne({ slug });
 
     if (!region) {
       return res.status(404).json({
         success: false,
-        message: `Region "${slug}" not found.`,
+        message: "Region not found.",
       });
     }
 
-    // Match treks belonging to this region by name or label or slug
-    const searchTerms = [region.name, region.label, region.slug].filter(Boolean);
-    const regexPattern = searchTerms.join("|");
-
     const treks = await Trek.find({
-      $or: [
-        { region: { $regex: regexPattern, $options: "i" } },
-        { location: { $regex: regexPattern, $options: "i" } },
-      ],
+      region: { $regex: region.name, $options: "i" },
       published: true,
-      isArchived: { $ne: true },
-    }).sort({ featuredOrder: 1, rating: -1, createdAt: -1 });
+    });
 
     const destinations = await Destination.find({
-      region: { $regex: regexPattern, $options: "i" },
+      region: { $regex: region.name, $options: "i" },
     });
 
     res.json({

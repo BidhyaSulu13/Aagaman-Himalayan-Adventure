@@ -421,7 +421,7 @@ export const dataStore = {
     const list = this.getDestinations();
     return list.find((d) => d.slug === slug || (d.name && d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug));
   },
-  saveDestination(destData, { persist = true } = {}) {
+  saveDestination(destData) {
     const list = this.getDestinations();
     const slug = destData.slug || (destData.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const item = {
@@ -453,44 +453,41 @@ export const dataStore = {
     }
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
-    if (persist) {
-      fetch("/api/destinations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: item.name,
-          slug: item.slug,
-          region: item.region,
-          elevation: item.elevation,
-          description: item.description,
-          images: item.images,
-          coordinates: { lat: item.lat, lng: item.lng },
-          highlights: item.highlights,
-          bestSeason: item.bestSeason,
-          attractions: item.attractions,
-          accommodationTypes: item.accommodationTypes,
-          culturalHighlights: item.culturalHighlights,
-          nearbySideTrips: item.nearbySideTrips,
-          trekSlugs: item.trekSlugs,
-        }),
-        credentials: "include",
-      }).catch(() => {});
-    }
+    // Also persist to backend
+    fetch("/api/destinations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: item.name,
+        slug: item.slug,
+        region: item.region,
+        elevation: item.elevation,
+        description: item.description,
+        images: item.images,
+        coordinates: { lat: item.lat, lng: item.lng },
+        highlights: item.highlights,
+        bestSeason: item.bestSeason,
+        attractions: item.attractions,
+        accommodationTypes: item.accommodationTypes,
+        culturalHighlights: item.culturalHighlights,
+        nearbySideTrips: item.nearbySideTrips,
+        trekSlugs: item.trekSlugs,
+      }),
+      credentials: "include",
+    }).catch(() => {});
 
     return item;
   },
-  deleteDestination(idOrSlug, { persist = true } = {}) {
+  deleteDestination(idOrSlug) {
     const list = this.getDestinations().filter(
       (d) => d.id !== idOrSlug && d.slug !== idOrSlug && d._id !== idOrSlug
     );
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
-    if (persist) {
-      fetch(`/api/destinations/${idOrSlug}`, {
-        method: "DELETE",
-        credentials: "include",
-      }).catch(() => {});
-    }
+    fetch(`/api/destinations/${idOrSlug}`, {
+      method: "DELETE",
+      credentials: "include",
+    }).catch(() => {});
   },
 
   // Trekking Guides & Trail Rules
@@ -531,43 +528,22 @@ export const dataStore = {
   getRegion(slugOrId) {
     const cleanId = (slugOrId || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const regions = this.getRegions();
-
-    // Look up with alias support (e.g. everest <-> khumbu)
-    const isEverest = cleanId.includes("everest") || cleanId.includes("khumbu");
-    const region = regions.find((r) => {
-      const rId = (r.id || "").toLowerCase();
-      const rSlug = (r.slug || "").toLowerCase();
-      const rName = (r.name || "").toLowerCase();
-      const rLabel = (r.label || "").toLowerCase();
-      if (isEverest && (rId.includes("everest") || rId.includes("khumbu") || rSlug.includes("everest") || rSlug.includes("khumbu") || rName.includes("khumbu") || rLabel.includes("everest"))) {
-        return true;
-      }
-      return (
-        rId === cleanId ||
-        rSlug === cleanId ||
-        rName === cleanId ||
-        cleanId.includes(rSlug) ||
-        rSlug.includes(cleanId) ||
-        cleanId.includes(rName)
-      );
-    });
+    const region = regions.find(
+      (r) => r.id === cleanId || r.slug === cleanId || cleanId.includes(r.slug) || r.slug.includes(cleanId)
+    );
 
     const dests = this.getDestinations();
     const allTreks = this.getTreks();
 
-    const searchTokens = [
-      cleanId,
-      region?.slug,
-      region?.name?.toLowerCase(),
-      region?.label?.toLowerCase(),
-      isEverest ? "khumbu" : null,
-      isEverest ? "everest" : null,
-    ].filter(Boolean);
-
     // Match sub-destinations belonging to this region
     const subDestinations = dests.filter((d) => {
       const dReg = (d.region || "").toLowerCase();
-      return searchTokens.some((token) => dReg.includes(token));
+      const rName = region ? region.name.toLowerCase() : cleanId;
+      return (
+        dReg.includes(rName.replace(" region", "")) ||
+        rName.includes(dReg.replace(" region", "")) ||
+        (region && dReg.includes(region.slug.replace("-region", "")))
+      );
     });
 
     // Match treks in this region
@@ -575,37 +551,23 @@ export const dataStore = {
       const reg = (t.region || "").toLowerCase();
       const loc = (t.location || "").toLowerCase();
       const title = (t.title || "").toLowerCase();
-      return searchTokens.some((token) => reg.includes(token) || loc.includes(token) || title.includes(token));
+      const rName = region ? region.name.toLowerCase().replace(" region", "") : cleanId.replace("-region", "");
+      return reg.includes(rName) || loc.includes(rName) || title.includes(rName);
     });
 
     // Categorized treks by grading / difficulty / duration
-    const highGradeTreks = matchingTreks.filter(
-      (t) =>
-        t.duration >= 13 ||
-        t.elevation >= 5000 ||
-        t.difficulty?.toLowerCase().includes("hard") ||
-        t.difficulty?.toLowerCase().includes("challenging") ||
-        t.difficulty?.toLowerCase().includes("strenuous")
-    );
-    const moderateGradeTreks = matchingTreks.filter(
-      (t) =>
-        (t.duration >= 7 && t.duration < 13 && (t.elevation || 0) < 5000) ||
-        t.difficulty?.toLowerCase().includes("moderate")
-    );
-    const easyGradeTreks = matchingTreks.filter(
-      (t) => t.duration < 7 || t.difficulty?.toLowerCase().includes("easy")
-    );
+    const highGradeTreks = matchingTreks.filter((t) => (t.duration >= 13) || (t.elevation >= 5000) || (t.difficulty?.toLowerCase().includes("challenging") || t.difficulty?.toLowerCase().includes("strenuous")));
+    const moderateGradeTreks = matchingTreks.filter((t) => (t.duration >= 7 && t.duration < 13 && t.elevation < 5000) || (t.difficulty?.toLowerCase().includes("moderate")));
+    const easyGradeTreks = matchingTreks.filter((t) => t.duration < 7 || t.difficulty?.toLowerCase().includes("easy"));
 
     return {
-      id: region ? region.id || region.slug : cleanId,
-      slug: region ? region.slug || region.id : cleanId,
-      name: region ? region.name : slugOrId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      id: region ? region.id : cleanId,
+      slug: region ? region.slug : cleanId,
+      name: region ? region.name : (slugOrId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())),
       label: region ? region.label : `${slugOrId.replace(/-/g, " ")} Region`,
-      tagline: region?.tagline || "Himalayan Territory · Protected Biosphere",
+      tagline: region?.tagline || "",
       description: region?.description || "",
-      image:
-        region?.image ||
-        "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=80",
+      image: region?.image || "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=80",
       coordinates: region?.coordinates || { lat: 28.0, lng: 85.0 },
       bestSeason: region?.bestSeason || ["Spring", "Autumn"],
       highlights: region?.highlights || [],
@@ -620,7 +582,7 @@ export const dataStore = {
     };
   },
 
-  saveRegion(regionData, { persist = true } = {}) {
+  saveRegion(regionData) {
     const list = this.getRegions();
     const slug = regionData.slug || (regionData.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const item = {
@@ -647,29 +609,26 @@ export const dataStore = {
     }
     setStored(REGIONS_STORAGE_KEY, list);
 
-    if (persist) {
-      fetch("/api/regions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
-        credentials: "include",
-      }).catch(() => {});
-    }
+    // Also persist to backend
+    fetch("/api/regions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item),
+      credentials: "include",
+    }).catch(() => {});
 
     return item;
   },
 
-  deleteRegion(idOrSlug, { persist = true } = {}) {
+  deleteRegion(idOrSlug) {
     const list = this.getRegions().filter(
       (r) => r.id !== idOrSlug && r.slug !== idOrSlug && r._id !== idOrSlug
     );
     setStored(REGIONS_STORAGE_KEY, list);
 
-    if (persist) {
-      fetch(`/api/regions/${idOrSlug}`, {
-        method: "DELETE",
-        credentials: "include",
-      }).catch(() => {});
-    }
+    fetch(`/api/regions/${idOrSlug}`, {
+      method: "DELETE",
+      credentials: "include",
+    }).catch(() => {});
   },
 };

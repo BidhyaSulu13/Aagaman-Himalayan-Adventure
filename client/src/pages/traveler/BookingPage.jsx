@@ -29,14 +29,14 @@ import {
 import { NotFoundPage } from "../public/MiscPages.jsx";
 import "./TripBooking.css";
 
-export function BookingPage() {
+export function BookingPage({ trekSlug: selectedTrekSlug } = {}) {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const notify = useToast();
   const navigate = useNavigate();
 
-  const trekSlug = slug || searchParams.get("trip") || "everest-base-camp";
+  const trekSlug = selectedTrekSlug || slug || searchParams.get("trip") || "everest-base-camp";
 
   // Dynamic trek and departure data from MongoDB
   const [trek, setTrek] = useState(null);

@@ -1,4 +1,4 @@
-import { useState, useMemo, lazy, Suspense, useEffect } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -18,95 +18,51 @@ import {
 import { Page, Reveal } from "../../components/common/Page.jsx";
 import { SectionHeading } from "../../components/common/SectionHeading.jsx";
 import { TrekCard } from "../../components/trek/TrekCard.jsx";
-import { MapLoading } from "../../components/common/PagePrimitives.jsx";
-import { api } from "../../services/api.js";
+import { DemoBanner, MapLoading } from "../../components/common/PagePrimitives.jsx";
+import { dataStore } from "../../services/dataStore.js";
+import { useTreks, useDestinations, useRegions } from "../../hooks/useDataStore.js";
 import { NotFoundPage } from "./MiscPages.jsx";
 
 const HimalayanMap = lazy(() => import("../../components/maps/HimalayanMap.jsx"));
 
 export function RegionPage() {
   const { slug } = useParams();
-  const [regionResponse, setRegionResponse] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const allTreks = useTreks();
+  const allDestinations = useDestinations();
+  const regionsList = useRegions();
+
   const [activeGrade, setActiveGrade] = useState("all");
   const [durationFilter, setDurationFilter] = useState("all");
   const [altitudeFilter, setAltitudeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recommended");
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setRegionResponse(null);
-    setLoadError("");
-    api.regions.getBySlug(slug)
-      .then((response) => {
-        if (active) setRegionResponse(response);
-      })
-      .catch((error) => {
-        if (active && !error.message.toLowerCase().includes("not found")) {
-          setLoadError(error.message || "Unable to load this region.");
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => { active = false; };
-  }, [slug]);
-
+  // Get rich region data
   const regionData = useMemo(() => {
-    const region = regionResponse?.region;
-    if (!region) return null;
+    return dataStore.getRegion(slug);
+  }, [slug, allTreks, allDestinations, regionsList]);
 
-    const allTreks = (regionResponse.treks || []).map((trek) => ({
-      ...trek,
-      image: trek.images?.[0] || trek.image || "",
-      elevation: trek.maximumElevation ?? trek.elevation ?? 0,
-      description: trek.shortDescription || trek.description || "",
-    }));
-    const matchesGrade = (trek, grade) => {
-      if (grade === "high") {
-        return trek.duration >= 13 || trek.elevation >= 5000 ||
-          ["challenging", "strenuous"].includes(trek.difficulty?.toLowerCase());
-      }
-      if (grade === "moderate") {
-        return (trek.duration >= 7 && trek.duration < 13 && trek.elevation < 5000) ||
-          trek.difficulty?.toLowerCase() === "moderate";
-      }
-      return trek.duration < 7 || trek.difficulty?.toLowerCase() === "easy";
-    };
+  if (!regionData || (!regionData.allTreks.length && !regionData.subDestinations.length)) {
+    const clean = (slug || "").toLowerCase();
+    const fallbackRegion = regionsList.find((r) => clean.includes(r.id) || r.id.includes(clean) || (r.slug && clean.includes(r.slug)));
+    if (!fallbackRegion) {
+      return <NotFoundPage />;
+    }
+  }
 
-    return {
-      ...region,
-      slug: region.slug || slug,
-      image: region.image || "",
-      coordinates: region.coordinates || {},
-      subDestinations: (regionResponse.destinations || []).map((destination) => ({
-        ...destination,
-        image: destination.images?.[0] || destination.image || "",
-        lat: destination.coordinates?.lat,
-        lng: destination.coordinates?.lng,
-      })),
-      allTreks,
-      highGradeTreks: allTreks.filter((trek) => matchesGrade(trek, "high")),
-      moderateGradeTreks: allTreks.filter((trek) => matchesGrade(trek, "moderate")),
-      easyGradeTreks: allTreks.filter((trek) => matchesGrade(trek, "easy")),
-    };
-  }, [regionResponse, slug]);
-
+  // Filter treks by grade, duration, and altitude
   const filteredTreks = useMemo(() => {
-    if (!regionData) return [];
     let list = [...regionData.allTreks];
 
+    // Grade Filter
     if (activeGrade === "high") {
-      list = [...regionData.highGradeTreks];
+      list = regionData.highGradeTreks;
     } else if (activeGrade === "moderate") {
-      list = [...regionData.moderateGradeTreks];
+      list = regionData.moderateGradeTreks;
     } else if (activeGrade === "easy") {
-      list = [...regionData.easyGradeTreks];
+      list = regionData.easyGradeTreks;
     }
 
+    // Duration Filter
     if (durationFilter === "short") {
       list = list.filter((t) => t.duration < 10);
     } else if (durationFilter === "medium") {
@@ -115,6 +71,7 @@ export function RegionPage() {
       list = list.filter((t) => t.duration > 14);
     }
 
+    // Altitude Filter
     if (altitudeFilter === "low") {
       list = list.filter((t) => (t.elevation || 0) < 4000);
     } else if (altitudeFilter === "mid") {
@@ -123,6 +80,7 @@ export function RegionPage() {
       list = list.filter((t) => (t.elevation || 0) >= 5000);
     }
 
+    // Sorting
     if (sortBy === "duration-asc") {
       list.sort((a, b) => a.duration - b.duration);
     } else if (sortBy === "duration-desc") {
@@ -136,23 +94,15 @@ export function RegionPage() {
     return list;
   }, [regionData, activeGrade, durationFilter, altitudeFilter, sortBy]);
 
-  if (loading) {
-    return <Page className="region-page"><p className="section-wrap" role="status">Loading region…</p></Page>;
-  }
-  if (loadError) {
-    return <Page className="region-page"><p className="section-wrap" role="alert">{loadError}</p></Page>;
-  }
-  if (!regionData || (!regionData.name && !regionData.label)) {
-    return <NotFoundPage />;
-  }
-
-  const maxElevation = (regionData.allTreks || []).reduce(
+  const maxElevation = regionData.allTreks.reduce(
     (max, t) => Math.max(max, t.elevation || 0),
     regionData.maxElevation || 0
   );
 
   return (
     <Page className="region-page">
+      <DemoBanner />
+
       {/* Region Hero */}
       <section className="region-hero section-wrap">
         <div className="region-hero-copy">
@@ -160,10 +110,10 @@ export function RegionPage() {
             <ArrowLeft size={16} /> Explore All Nepal Treks
           </Link>
           <div className="region-hero-header">
-            <span className="eyebrow">{regionData.tagline || "Explore the region"}</span>
+            <span className="eyebrow">{regionData.tagline || "Himalayan Territory · Protected Biosphere"}</span>
             <h1>{regionData.label || regionData.name}</h1>
             <p className="region-hero-desc">
-              {regionData.description}
+              {regionData.description || `Discover curated expeditions, sacred alpine trails, and high mountain passes across the legendary ${regionData.name}. All itineraries led by local veteran Sherpas with guaranteed departures and wilderness medical support.`}
             </p>
           </div>
 
@@ -171,7 +121,7 @@ export function RegionPage() {
           <div className="region-meta-pills">
             <div className="meta-pill">
               <Mountain size={16} className="pill-icon" />
-              <span>Max Altitude: <strong>{maxElevation > 0 ? `${maxElevation.toLocaleString()}m` : "Not specified"}</strong></span>
+              <span>Max Altitude: <strong>{maxElevation > 0 ? `${maxElevation.toLocaleString()}m` : "5,400m+"}</strong></span>
             </div>
             <div className="meta-pill">
               <Compass size={16} className="pill-icon" />
@@ -187,11 +137,6 @@ export function RegionPage() {
             </div>
           </div>
         </div>
-        {regionData.image && (
-          <div className="region-hero-visual" aria-label={`${regionData.label || regionData.name} landscape`} role="img">
-            <img src={regionData.image} alt={`${regionData.label || regionData.name} mountain landscape`} fetchPriority="high" />
-          </div>
-        )}
       </section>
 
       {/* Region Highlights & Permits Overview */}

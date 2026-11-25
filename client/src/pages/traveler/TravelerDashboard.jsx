@@ -678,7 +678,7 @@ export function TravelerDashboard() {
                     <h2>My Bookings & Inquiries</h2>
                     <p className="dash-section-desc">Manage your reservations, view booking references, and submit cancellation requests.</p>
                   </div>
-                  <Link to="/treks" className="button button-orange button-small">
+                  <Link to="/book-another-trek" className="button button-orange button-small">
                     Book Another Trek +
                   </Link>
                 </div>

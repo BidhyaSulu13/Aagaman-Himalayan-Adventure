@@ -14,10 +14,13 @@ export function AuthPage({ mode }) {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { login, register, loginWithGoogle, loginWithEmailLink, user, logout } = useAuth();
+  const { login, loginAdmin, register, loginWithGoogle, loginWithEmailLink, user, logout } = useAuth();
+  const [activeMode, setActiveMode] = useState(mode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState(location.state?.email || searchParams.get("email") || "");
   const [password, setPassword] = useState("");
+  const [loginEmailFocused, setLoginEmailFocused] = useState(false);
+  const [loginPasswordFocused, setLoginPasswordFocused] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -27,10 +30,12 @@ export function AuthPage({ mode }) {
   const googleCallbackRef = useRef(null);
   const emailLinkPromiseRef = useRef(null);
 
-  const isRegister = mode === "register";
-  const isForgot = mode === "forgot";
-  const isReset = mode === "reset";
-  const isEmailLink = mode === "email-link";
+  useEffect(() => setActiveMode(mode), [mode]);
+
+  const isRegister = activeMode === "register";
+  const isForgot = activeMode === "forgot";
+  const isReset = activeMode === "reset";
+  const isEmailLink = activeMode === "email-link";
   const isLogin = !isRegister && !isForgot && !isReset && !isEmailLink;
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const returnTo = safeReturnPath(location.state?.returnTo || searchParams.get("returnTo"));
@@ -61,6 +66,7 @@ export function AuthPage({ mode }) {
     const initializeGoogle = () => {
       const google = window.google?.accounts?.id;
       if (!active || !google || !googleButtonRef.current) return;
+      googleButtonRef.current.replaceChildren();
       google.initialize({
         client_id: googleClientId,
         callback: (response) => googleCallbackRef.current?.(response.credential),
@@ -141,7 +147,13 @@ export function AuthPage({ mode }) {
         const response = await api.auth.resetPassword(token, password);
         setNotice(response.message || "Password updated. You can now sign in.");
       } else {
-        const response = await login(email, password);
+        let response;
+        try {
+          response = await login(email, password);
+        } catch (loginError) {
+          if (loginError.status !== 401) throw loginError;
+          response = await loginAdmin(email, password);
+        }
         navigate(response.user?.role === "admin" ? "/admin/dashboard" : returnTo, { replace: true });
       }
     } catch (requestError) {
@@ -163,6 +175,16 @@ export function AuthPage({ mode }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const switchForm = (nextMode) => {
+    setActiveMode(nextMode);
+    setLoginEmailFocused(false);
+    setLoginPasswordFocused(false);
+    setError("");
+    setNotice("");
+    setPassword("");
+    setConfirmPassword("");
   };
 
   if (isEmailLink) {
@@ -187,9 +209,9 @@ export function AuthPage({ mode }) {
         <div className="auth-card">
           <span className="auth-mark"><Mountain size={21} /></span>
           <p className="eyebrow">Account session active</p>
-          <h1>Admin is signed in.</h1>
-          <p className="auth-description">Log out of the admin account before signing in or registering as a traveler. Your current session will stay active until you choose to end it.</p>
-          <button className="button button-dark button-full" type="button" onClick={logout}>Log out admin and continue</button>
+          <h1>{user.role === "admin" ? "Admin is signed in." : "Traveler is signed in."}</h1>
+          <p className="auth-description">Log out of the current account before switching account types.</p>
+          <button className="button button-dark button-full" type="button" onClick={logout}>Log out and continue</button>
         </div>
       </Page>
     );
@@ -204,12 +226,12 @@ export function AuthPage({ mode }) {
         <h1>{title}</h1>
         <p className="auth-description">
           {isForgot
-            ? "Enter your account email and we’ll send password reset instructions if it matches."
+            ? "Enter your email to reset your password."
             : isReset
-              ? "Choose a new password for your account."
+              ? "Choose a new password."
               : isRegister
-                ? "Create an account to keep your bookings and reviews together."
-                  : "Sign in to book treks, save favorites, and manage your bookings and reviews."}
+                ? "Create an account to manage your treks."
+                : "Sign in to manage your treks."}
         </p>
 
         {(isLogin || isRegister) && (
@@ -218,12 +240,9 @@ export function AuthPage({ mode }) {
               <div className="google-signin-wrap" aria-label="Continue with Google">
                 <div ref={googleButtonRef} />
                 {!googleReady && <span className="auth-note">Loading Google sign-in…</span>}
-                <span className="auth-note">
-                  Authorize this exact origin in Google Cloud Console: <strong>{window.location.origin}</strong>
-                </span>
               </div>
             ) : (
-              <div className="auth-config-note" role="note">Google sign-in will be available after the Google client ID is configured.</div>
+              <div className="auth-config-note" role="note">Google sign-in unavailable.</div>
             )}
             <div className="auth-divider"><span>or continue with email</span></div>
           </>
@@ -232,18 +251,36 @@ export function AuthPage({ mode }) {
         {notice && <div className="auth-success-message" role="status"><Check size={18} /><span>{notice}</span></div>}
         {error && <p className="auth-error-message" role="alert">{error}</p>}
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
           {isRegister && (
             <label>Your name
               <input value={name} onChange={(event) => setName(event.target.value)} required autoComplete="name" placeholder="Your full name" />
             </label>
           )}
           {!isReset && <label>Email address
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required autoComplete="email" placeholder="you@example.com" />
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              onFocus={() => setLoginEmailFocused(true)}
+              readOnly={isLogin && !loginEmailFocused}
+              type="email"
+              required
+              autoComplete={isRegister ? "email" : "new-password"}
+              placeholder="you@example.com"
+            />
           </label>}
           {!isForgot && (
             <label>{isReset ? "New password" : "Password"}
-              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required minLength={6} autoComplete={isRegister || isReset ? "new-password" : "current-password"} />
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                onFocus={() => setLoginPasswordFocused(true)}
+                readOnly={isLogin && !loginPasswordFocused}
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
             </label>
           )}
           {(isRegister || isReset) && (
@@ -271,9 +308,6 @@ export function AuthPage({ mode }) {
             <button className="auth-email-link-button" type="button" onClick={requestEmailLink} disabled={busy || !email}>
               Email me a one-time sign-in link
             </button>
-            <p className="auth-note">
-              If you created your account with Google, use Continue with Google; a Google password won’t work in this form.
-            </p>
           </>
         )}
 
@@ -281,8 +315,8 @@ export function AuthPage({ mode }) {
           {isForgot || isReset
             ? <Link to="/login" state={{ returnTo }}>Back to sign in</Link>
             : isRegister
-              ? <>Already have an account? <Link to="/login" state={{ returnTo }}>Sign in</Link></>
-              : <>New around here? <Link to="/register" state={{ returnTo }}>Create an account</Link></>}
+              ? <><span>Already have an account?</span><button className="auth-switch-button" type="button" onClick={() => switchForm("login")}>Sign in</button></>
+              : <><span>New around here?</span><button className="auth-switch-button" type="button" onClick={() => switchForm("register")}>Create an account</button></>}
         </div>
       </div>
     </Page>

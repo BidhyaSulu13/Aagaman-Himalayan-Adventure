@@ -58,6 +58,9 @@ const AuthPage = lazy(() =>
 const BookingPage = lazy(() =>
   import("../pages/traveler/BookingPage.jsx").then((module) => ({ default: module.BookingPage })),
 );
+const BookAnotherTrekPage = lazy(() =>
+  import("../pages/traveler/BookAnotherTrekPage.jsx").then((module) => ({ default: module.BookAnotherTrekPage })),
+);
 const CustomizeTripPage = lazy(() =>
   import("../pages/traveler/CustomizeTripPage.jsx").then((module) => ({
     default: module.CustomizeTripPage,
@@ -127,6 +130,7 @@ function RequireAuth({ children }) {
 export default function AppRoutes() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
+  const isAuthRoute = /^\/(login|register|forgot-password|reset-password|auth\/email)(\/|$)/.test(location.pathname);
 
   return (
     <>
@@ -159,6 +163,7 @@ export default function AppRoutes() {
             <Route path="/review/verify/:token" element={<ReviewVerificationPage />} />
             <Route path="/dashboard" element={<TravelerDashboard />} />
             <Route path="/account" element={<TravelerDashboard />} />
+            <Route path="/book-another-trek" element={<RequireAuth><BookAnotherTrekPage /></RequireAuth>} />
             <Route path="/booking/:slug" element={<RequireAuth><BookingPage /></RequireAuth>} />
             <Route path="/treks/:slug/book" element={<RequireAuth><BookingPage /></RequireAuth>} />
             <Route path="/trip-booking" element={<RequireAuth><BookingPage /></RequireAuth>} />
@@ -176,7 +181,7 @@ export default function AppRoutes() {
           </Routes>
         </Suspense>
       </AnimatePresence>
-      {!isAdminRoute && <Footer />}
+      {!isAdminRoute && !isAuthRoute && <Footer />}
     </>
   );
 }

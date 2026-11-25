@@ -8,18 +8,14 @@ import {
   ChevronDown,
   Clock,
   Compass,
-  FileText,
   Flame,
   Heart,
-  HeartHandshake,
   MapPin,
   Menu,
   Mountain,
-  Package,
   Search,
   Sparkles,
   Star,
-  Sun,
   UserCheck,
   X
 } from "lucide-react";
@@ -33,31 +29,26 @@ const guideSublinks = [
   {
     title: "Altitude Safety & Acclimatization",
     desc: "General planning reminders and ways to prepare for altitude.",
-    icon: Mountain,
     to: "/trekking-guides/altitude-acclimatization",
   },
   {
     title: "Permits & Route Requirements",
     desc: "Confirm current permits, costs, and guide requirements with authorities.",
-    icon: FileText,
     to: "/trekking-guides/permits-and-tims",
   },
   {
     title: "Interactive Gear Checklist",
     desc: "Full packing checklist with layering essentials.",
-    icon: Package,
     to: "/trekking-guides/packing-checklist",
   },
   {
     title: "Seasons & Weather",
     desc: "Conditions vary; check current forecasts and route status.",
-    icon: Sun,
     to: "/trekking-guides/seasons-and-weather",
   },
   {
     title: "Culture & Trail Etiquette",
     desc: "Learn local customs from the communities you visit.",
-    icon: HeartHandshake,
     to: "/trekking-guides/local-culture-and-etiquette",
   },
 ];
@@ -183,17 +174,7 @@ export function Header() {
       <div className="header-inner" ref={navRef}>
         {/* Brand */}
         <Link className="brand" to="/" aria-label="Agaaman: A Himalayan Adventure">
-          <div className="brand-logo-mark">
-            <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <circle cx="23" cy="8" r="3.2" />
-              <path d="M2.5 25.5 11.2 11l5.1 8.2 3.1-4.6 10.1 10.9H2.5Z" />
-              <path d="m8.4 15.7 2.8-1.5 2.1 3.3M17.8 19l1.5-2.1 2.5 2.7" />
-            </svg>
-          </div>
-          <span className="brand-name">
-            <span className="brand-title">Agaaman</span>
-            <span className="brand-tagline">Himalayan Adventure</span>
-          </span>
+          <img className="brand-logo-image" src="/agaaman-logo.png" alt="Agaaman Himalayan Adventure" />
         </Link>
 
         {/* Mobile menu button */}
@@ -469,7 +450,6 @@ export function Header() {
                   </div>
                   <div className="guide-dropdown-grid">
                     {guideSublinks.map((item) => {
-                      const Icon = item.icon;
                       return (
                         <Link
                           key={item.title}
@@ -477,13 +457,11 @@ export function Header() {
                           className="guide-dropdown-item"
                           onClick={() => setOpenDropdown(null)}
                         >
-                          <span className="guide-item-icon">
-                            <Icon size={18} />
-                          </span>
                           <div className="guide-item-copy">
                             <strong>{item.title}</strong>
                             <p>{item.desc}</p>
                           </div>
+                          <ArrowRight className="guide-sub-link-arrow" size={16} aria-hidden="true" />
                         </Link>
                       );
                     })}

@@ -121,9 +121,9 @@ export function TreksPage() {
       // 4. Duration Filter
       if (duration !== "Any duration") {
         const dur = Number(trek.duration) || 0;
-        if ((duration.startsWith("1–6") || duration.startsWith("1-6") || duration.startsWith("1")) && !duration.startsWith("13") && (dur < 1 || dur > 6)) return false;
-        if ((duration.startsWith("7–12") || duration.startsWith("7-12") || duration.startsWith("7")) && (dur < 7 || dur > 12)) return false;
-        if (duration.startsWith("13") && dur < 13) return false;
+        if (duration === "1–6 days" && (dur < 1 || dur > 6)) return false;
+        if (duration === "7–12 days" && (dur < 7 || dur > 12)) return false;
+        if (duration === "13+ days" && dur < 13) return false;
       }
 
       // 5. Rating Filter

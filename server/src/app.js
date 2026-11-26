@@ -34,14 +34,19 @@ if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
 
-// Security headers
-app.use(helmet());
+// Security headers (allow Google OAuth popup postMessage)
+app.use(
+  helmet({
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  })
+);
 
 // CORS configuration supporting credentials (HttpOnly cookies)
 const configuredClientOrigins = (process.env.CLIENT_URL || "")
   .split(",")
   .map((origin) => origin.trim().replace(/\/+$/, ""))
   .filter(Boolean);
+
 const allowedOrigins = new Set([
   ...configuredClientOrigins,
   ...(process.env.NODE_ENV === "production"
@@ -54,19 +59,25 @@ const allowedOrigins = new Set([
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
       ]),
-].filter(Boolean));
+]);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.has(origin.replace(/\/+$/, ""))) {
+      const normalized = origin ? origin.replace(/\/+$/, "") : "";
+      if (!normalized || allowedOrigins.has(normalized)) {
         callback(null, true);
       } else {
+        console.warn(
+          `[CORS blocked] Origin "${normalized}" not in allowedOrigins:`,
+          [...allowedOrigins]
+        );
         callback(null, false);
       }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 

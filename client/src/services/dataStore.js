@@ -422,7 +422,7 @@ export const dataStore = {
     const list = this.getDestinations();
     return list.find((d) => d.slug === slug || (d.name && d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug));
   },
-  saveDestination(destData) {
+  saveDestination(destData, { persist = true } = {}) {
     const list = this.getDestinations();
     const slug = destData.slug || (destData.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const item = {
@@ -454,28 +454,30 @@ export const dataStore = {
     }
     setStored(DESTINATIONS_STORAGE_KEY, list);
 
-    // Also persist to backend
-    fetch(apiUrl("/destinations"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: item.name,
-        slug: item.slug,
-        region: item.region,
-        elevation: item.elevation,
-        description: item.description,
-        images: item.images,
-        coordinates: { lat: item.lat, lng: item.lng },
-        highlights: item.highlights,
-        bestSeason: item.bestSeason,
-        attractions: item.attractions,
-        accommodationTypes: item.accommodationTypes,
-        culturalHighlights: item.culturalHighlights,
-        nearbySideTrips: item.nearbySideTrips,
-        trekSlugs: item.trekSlugs,
-      }),
-      credentials: "include",
-    }).catch(() => {});
+    if (persist) {
+      // Also persist to backend
+      fetch(apiUrl("/destinations"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: item.name,
+          slug: item.slug,
+          region: item.region,
+          elevation: item.elevation,
+          description: item.description,
+          images: item.images,
+          coordinates: { lat: item.lat, lng: item.lng },
+          highlights: item.highlights,
+          bestSeason: item.bestSeason,
+          attractions: item.attractions,
+          accommodationTypes: item.accommodationTypes,
+          culturalHighlights: item.culturalHighlights,
+          nearbySideTrips: item.nearbySideTrips,
+          trekSlugs: item.trekSlugs,
+        }),
+        credentials: "include",
+      }).catch(() => {});
+    }
 
     return item;
   },

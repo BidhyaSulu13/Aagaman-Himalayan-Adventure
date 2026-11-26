@@ -1,6 +1,7 @@
 const configuredApiBase = String(
   import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ""
 ).trim();
+const AUTH_TOKEN_STORAGE_KEY = "agaaman_auth_token";
 const API_ORIGIN = configuredApiBase
   ? (/^https?:\/\//i.test(configuredApiBase) ? configuredApiBase : `https://${configuredApiBase}`)
       .replace(/\/api\/?$/i, "")
@@ -25,6 +26,12 @@ export function normalizeApiMedia(value) {
   return value;
 }
 
+export function clearAuthToken() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
+}
+
 async function request(endpoint, options = {}, { quietStatuses = [] } = {}) {
   const url = apiUrl(endpoint);
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
@@ -32,6 +39,12 @@ async function request(endpoint, options = {}, { quietStatuses = [] } = {}) {
     ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     ...options.headers,
   };
+  const authToken = typeof window !== "undefined"
+    ? window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+    : null;
+  if (authToken && !headers.Authorization) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
 
   const config = {
     ...options,
@@ -52,6 +65,11 @@ async function request(endpoint, options = {}, { quietStatuses = [] } = {}) {
       error.status = response.status;
       throw error;
     }
+
+    if (data.token && typeof window !== "undefined") {
+      window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token);
+    }
+    if (endpoint === "/auth/logout") clearAuthToken();
 
     return normalizeApiMedia(data);
   } catch (error) {

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { api } from "../services/api.js";
+import { api, clearAuthToken } from "../services/api.js";
 
 const AuthContext = createContext(null);
 
@@ -89,6 +89,7 @@ export function AuthProvider({ children }) {
     } catch {
       // Clear local state even if the server is unreachable.
     } finally {
+      clearAuthToken();
       setUser(null);
     }
   };

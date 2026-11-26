@@ -585,7 +585,7 @@ export const dataStore = {
     };
   },
 
-  saveRegion(regionData) {
+  saveRegion(regionData, { persist = true } = {}) {
     const list = this.getRegions();
     const slug = regionData.slug || (regionData.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const item = {
@@ -612,13 +612,15 @@ export const dataStore = {
     }
     setStored(REGIONS_STORAGE_KEY, list);
 
-    // Also persist to backend
-    fetch(apiUrl("/regions"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(item),
-      credentials: "include",
-    }).catch(() => {});
+    if (persist) {
+      // Also persist to backend
+      fetch(apiUrl("/regions"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+        credentials: "include",
+      }).catch(() => {});
+    }
 
     return item;
   },
